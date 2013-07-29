@@ -160,8 +160,7 @@ class PythonCollectionTask(BaseTask):
                         min=dp.rrdMin,
                         max=dp.rrdMax,
                         threshEventData=threshData,
-                        timestamp=dp_value[1],
-                        allowStaleDatapoint=False)
+                        timestamp=dp_value[1])
 
     def handleError(self, result):
         log.error('unhandled plugin error: %s', result)

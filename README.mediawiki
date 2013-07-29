@@ -1,0 +1,229 @@
+This ZenPack provides a new ''Python'' data source type. It also provides a new ''zenpython'' collector daemon that is responsible for collecting these data sources.
+
+The goal of the ''Python'' data source type is to replicate some of the standard ''COMMAND'' data source type's functionality without requiring a new shell and shell subprocess to be spawned each time the data source is collected. The ''COMMAND'' data source type is infinitely flexible, but because of the shell and subprocess spawning, it's performance and ability to pass data into the collection script are limited. The ''Python'' data source type circumvents the need to spawn subprocesses by forcing the collection code to be asynchronous using the Twisted library. It circumvents the problem with passing data into the collection logic by being able to pass any basic Python data type without the need to worry about shell escaping issues.
+
+The ''Python'' data source type is intended to be used in one of two ways. The first way is directly through the creation of Python data sources through the web interface or in a ZenPack. When used in this way, it is the responsibility of the data source creator to implement the required Python class specified in the data source's ''Python Class Name'' property field. The second way the ''Python'' data source can be used is as a base class for another data source type. Used in this way, the ZenPack author will create a subclass of ''PythonDataSource'' to provide a higher-level functionality to the user. The user is then not responsible for writing a Python class to collect and process data.
+
+== Using the Python Data Source Type Directly ==
+
+To create a ''Python'' data source directly you should first implement the Python class you'll eventually use for the data source's ''Plugin Class Name''. It is recommended to implement this class in a ZenPack so that it is portable from one Zenoss system to another and differentiates your custom code from Zenoss code.
+
+Assuming you have a ZenPack named ZenPacks.example.PackName you would create a ZenPacks/example/PackName/dsplugins.py file with contents like the following.
+
+<syntaxhighlight lang="python">
+from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
+    import PythonDataSourcePlugin
+
+class MyPlugin(PythonDataSourcePlugin):
+    """Explanation of what MyPlugin does."""
+
+    # List of device attributes you'll need to do collection.
+    proxy_attributes = (
+        'zCommandUsername',
+        'zCommandPassword',
+        )
+
+    @classmethod
+    def config_key(cls, datasource, context):
+        """
+        Return a tuple defining collection uniqueness.
+
+        This is a classmethod that is executed in zenhub. The datasource and
+        context parameters are the full objects.
+
+        This example implementation is the default. Split configurations by
+        device, cycle time, template id, datasource id and the Python data
+        source's plugin class name.
+
+        You can omit this method from your implementation entirely if this
+        default uniqueness behavior fits your needs. In many cases it will.
+        """
+        return (
+            context.device().id,
+            datasource.getCycleTime(context),
+            datasource.rrdTemplate().id,
+            datasource.id,
+            datasource.plugin_classname,
+            )
+
+    @classmethod
+    def params(cls, datasource, context):
+        """
+        Return params dictionary needed for this plugin.
+
+        This is a classmethod that is executed in zenhub. The datasource and
+        context parameters are the full objects.
+
+        This example implementation will provide no extra information for
+        each data source to the collect method.
+
+        You can omit this method from your implementation if you don't require
+        any additional information on each of the datasources of the config
+        parameter to the collect method below. If you only need extra
+        information at the device level it is easier to just use
+        proxy_attributes as mentioned above.
+        """
+        return {}
+
+    def collect(self, config):
+        """
+        No default collect behavior. You must implement this method.
+
+        This method must return a Twisted deferred. The deferred results will
+        be sent to the onResult then either onSuccess or onError callbacks
+        below.
+        """
+        ds0 = config.datasources[0]
+        return somethingThatReturnsADeferred(
+            username=ds0.zCommandUsername,
+            password=ds0.zCommandPassword)
+
+    def onResult(self, result, config):
+        """
+        Called first for success and error.
+
+        You can omit this method if you want the result of the collect method
+        to be used without further processing.
+        """
+        return result
+
+    def onSuccess(self, result, config):
+        """
+        Called only on success. After onResult, before onComplete.
+
+        You should return a data structure with zero or more events and
+        values.
+        """
+        return {
+            'events': [{
+                'summary': 'successful collection',
+                'eventKey': 'myPlugin_result',
+                'severity': 0,
+                },{
+                'summary': 'first event summary',
+                'eventKey': 'myPlugin_result',
+                'severity': 2,
+                },{
+                'summary': 'second event summary',
+                'eventKey': 'myPlugin_result',
+                'severity': 3,
+                }],
+
+            'values': {
+                '': {  # datapoints for the device (no component)
+                    'datapoint1': 123.4,
+                    'datapoint2': 5.678,
+                    },
+                'cpu1': {
+                    'user': 12.1,
+                    'system': 1.21,
+                    'io': 23,
+                    }
+                }
+            }
+
+    def onError(self, result, config):
+        """
+        Called only on error. After onResult, before onComplete.
+
+        You can omit this method if you want the error result of the collect
+        method to be used without further processing. It recommended to
+        implement this method to capture errors.
+        """
+        return {
+            'events': [{
+                'summary': 'error: %s' % result,
+                'eventKey': 'myPlugin_result',
+                'severity': 4,
+                }],
+            }
+
+    def onComplete(self, result, config):
+        """
+        Called last for success and error.
+
+        You can omit this method if you want the result of either the
+        onSuccess or onError method to be used without further processing.
+        """
+        return result
+</syntaxhighlight>
+
+== Extending the Python Data Source Type ==
+
+To extend the ''Python'' data source type to create a new data source type you will absolutely need to create a ZenPack to contain your new data source type. Assuming you have a ZenPack named ZenPacks.example.PackName you would create a ZenPacks/example/PackName/datasources/MyDataSource.py file with contents like the following.
+
+<syntaxhighlight lang="python">
+from zope.component import adapts
+from zope.interface import implements
+
+from Products.Zuul.form import schema
+from Products.Zuul.infos import ProxyProperty
+from Products.Zuul.infos.template import RRDDataSourceInfo
+from Products.Zuul.interfaces import IRRDDataSourceInfo
+from Products.Zuul.utils import ZuulMessageFactory as _t
+
+from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
+    import PythonDataSource, PythonDataSourcePlugin
+
+
+class MyDataSource(PythonDataSource):
+    """Explanation of what MyDataSource does."""
+
+    ZENPACKID = 'ZenPacks.example.PackName'
+
+    # Friendly name for your data source type in the drop-down selection.
+    sourcetypes = ('MyDataSource',)
+    sourcetype = sourcetypes[0]
+
+    # Collection plugin for this type. Defined below in this file.
+    plugin_classname = 'ZenPacks.example.PackName.datasources.MyDataSource.MyDataSourcePlugin'
+
+    # Extra attributes for my type.
+    extra1 = ''
+    extra2 = ''
+
+    # Registering types for my attributes.
+    _properties = PythonDataSource._properties + (
+        {'id': 'extra1', 'type': 'string'},
+        {'id': 'extra2', 'type': 'string'},
+        )
+
+
+class IMyDataSourceInfo(IRRDDataSourceInfo):
+    """Interface that creates the web form for this data source type."""
+
+    cycletime = schema.TextLine(
+        title=_t(u'Cycle Time (seconds)'))
+
+    extra1 = schema.TextLine(
+        group=_t('MyDataSource'),
+        title=_t('Extra 1'))
+
+    extra2 = schema.TextLine(
+        group=_t('MyDataSource'),
+        title=_t('Extra 1'))
+
+
+class MyDataSourceInfo(RRDDataSourceInfo):
+    """Adapter between IMyDataSourceInfo and MyDataSource."""
+
+    implements(IMyDataSourceInfo)
+    adapts(MyDataSource)
+
+    testable = False
+
+    cycletime = ProxyProperty('cycletime')
+
+    extra1 = ProxyProperty('extra1')
+    extra2 = ProxyProperty('extra2')
+
+
+class MyDataSourcePlugin(PythonDataSourcePlugin):
+    """
+    Collection plugin class for MyDataSource.
+
+    See the "Using the Python Data Source Type Directly" section above for
+    an example implementation.
+    """
+    pass
+</syntaxhighlight>
