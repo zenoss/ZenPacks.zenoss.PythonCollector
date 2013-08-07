@@ -91,8 +91,8 @@ class MyPlugin(PythonDataSourcePlugin):
         """
         Called only on success. After onResult, before onComplete.
 
-        You should return a data structure with zero or more events and
-        values.
+        You should return a data structure with zero or more events, values
+        and maps.
         """
         return {
             'events': [{
@@ -119,7 +119,12 @@ class MyPlugin(PythonDataSourcePlugin):
                     'system': 1.21,
                     'io': 23,
                     }
-                }
+                },
+
+            'maps': [
+                ObjectMap(...),
+                RelationshipMap(..),
+                ]
             }
 
     def onError(self, result, config):
