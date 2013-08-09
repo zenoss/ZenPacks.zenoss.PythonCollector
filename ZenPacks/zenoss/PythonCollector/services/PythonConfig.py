@@ -185,3 +185,14 @@ class PythonConfig(CollectorConfigService):
 
                         break
         return result
+
+    def remote_applyDataMaps(self, device, datamaps):
+        device = self.getPerformanceMonitor().findDevice(device)
+        applicator = ApplyDataMap(self)
+
+        changed = False
+        for datamap in datamaps:
+            if applicator._applyDataMap(device, datamap):
+                changed = True
+
+        return changed
