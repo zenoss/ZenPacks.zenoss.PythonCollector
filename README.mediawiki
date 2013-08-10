@@ -110,7 +110,7 @@ class MyPlugin(PythonDataSourcePlugin):
                 }],
 
             'values': {
-                '': {  # datapoints for the device (no component)
+                None: {  # datapoints for the device (no component)
                     'datapoint1': 123.4,
                     'datapoint2': 5.678,
                     },
