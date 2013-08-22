@@ -145,6 +145,7 @@ class PythonDataSourcePlugin(object):
         return {
             'values': defaultdict(dict),
             'events': [],
+            'maps': [],
             }
 
     def collect(self, config):

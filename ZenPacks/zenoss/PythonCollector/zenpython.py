@@ -18,6 +18,7 @@ log = logging.getLogger('zen.python')
 
 import Globals
 
+from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.spread import pb
 
 import zope.interface
@@ -25,6 +26,7 @@ import zope.interface
 from Products.ZenCollector.daemon import CollectorDaemon
 
 from Products.ZenCollector.interfaces import (
+    ICollector,
     ICollectorPreferences,
     IDataService,
     IEventService,
@@ -86,6 +88,8 @@ class PythonCollectionTask(BaseTask):
 
     STATE_FETCH_DATA = 'FETCH_DATA'
     STATE_STORE_PERF = 'STORE_PERF_DATA'
+    STATE_SEND_EVENTS = 'STATE_SEND_EVENTS'
+    STATE_APPLY_MAPS = 'STATE_APPLY_MAPS'
 
     def __init__(self, taskName, configId, scheduleIntervalSeconds, taskConfig):
         super(PythonCollectionTask, self).__init__(
@@ -98,6 +102,7 @@ class PythonCollectionTask(BaseTask):
         self.interval = scheduleIntervalSeconds
         self.config = taskConfig
 
+        self._collector = zope.component.queryUtility(ICollector)
         self._dataService = zope.component.queryUtility(IDataService)
         self._eventService = zope.component.queryUtility(IEventService)
 
@@ -121,8 +126,14 @@ class PythonCollectionTask(BaseTask):
     def processResults(self, result):
         self.sendEvents(result['events'])
         self.storeValues(result['values'])
+        self.applyMaps(result['maps'])
 
     def sendEvents(self, events):
+        if not events:
+            return
+
+        self.state = PythonCollectionTask.STATE_SEND_EVENTS
+
         if len(events) < 1:
             return
 
@@ -134,6 +145,9 @@ class PythonCollectionTask(BaseTask):
         self._eventService.sendEvents(events)
 
     def storeValues(self, values):
+        if not values:
+            return
+
         self.state = PythonCollectionTask.STATE_STORE_PERF
 
         for datasource in self.config.datasources:
@@ -161,6 +175,24 @@ class PythonCollectionTask(BaseTask):
                         max=dp.rrdMax,
                         threshEventData=threshData,
                         timestamp=dp_value[1])
+
+    @inlineCallbacks
+    def applyMaps(self, maps):
+        if not maps:
+            returnValue(None)
+
+        self.state = PythonCollectionTask.STATE_APPLY_MAPS
+
+        remoteProxy = self._collector.getRemoteConfigServiceProxy()
+
+        log.debug('Applying %s datamaps to %s', len(maps), self.configId)
+        changed = yield remoteProxy.callRemote(
+            'applyDataMaps', self.configId, maps)
+
+        if changed:
+            log.debug('Changes applied to %s', self.configId)
+        else:
+            log.debug('No changes applied to %s', self.configId)
 
     def handleError(self, result):
         log.error('unhandled plugin error: %s', result)

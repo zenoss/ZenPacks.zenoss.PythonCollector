@@ -14,13 +14,17 @@ import importlib
 
 from twisted.spread import pb
 
+from Products.DataCollector.ApplyDataMap import ApplyDataMap
 from Products.ZenCollector.services.config import CollectorConfigService
 from Products.ZenRRD.zencommand import DataPointConfig
 
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSource
 
-known_point_properties = ('isrow', 'rrdmax', 'description','rrdmin','rrdtype','createCmd')
+
+known_point_properties = (
+    'isrow', 'rrdmax', 'description', 'rrdmin', 'rrdtype', 'createCmd')
+
 
 class PythonDataSourceConfig(pb.Copyable, pb.RemoteCopy):
     device = None
@@ -46,7 +50,6 @@ class PythonDataSourceConfig(pb.Copyable, pb.RemoteCopy):
 
 
 def load_plugin_class(classname):
-
     class_parts = classname.split('.')
 
     module_ = importlib.import_module('.'.join(class_parts[:-1]))
@@ -103,15 +106,15 @@ class PythonConfig(CollectorConfigService):
                     dp_config.rrdCreateCommand = dp.getRRDCreateCommand(collector)
                     dp_config.rrdMin = dp.rrdmin
                     dp_config.rrdMax = dp.rrdmax
-                    
+
                     # Attach unknown properties to the dp_config
                     for key in dp.propdict().keys():
-                         if key in known_point_properties:
-                             continue
-                         try:
-                             setattr(dp_config,key,getattr(dp,key))
-                         except Exception:
-                             pass 
+                        if key in known_point_properties:
+                            continue
+                        try:
+                            setattr(dp_config, key, getattr(dp, key))
+                        except Exception:
+                            pass
 
                     datapoints.append(dp_config)
 
@@ -182,3 +185,14 @@ class PythonConfig(CollectorConfigService):
 
                         break
         return result
+
+    def remote_applyDataMaps(self, device, datamaps):
+        device = self.getPerformanceMonitor().findDevice(device)
+        applicator = ApplyDataMap(self)
+
+        changed = False
+        for datamap in datamaps:
+            if applicator._applyDataMap(device, datamap):
+                changed = True
+
+        return changed
