@@ -123,6 +123,9 @@ class PythonCollectionTask(BaseTask):
         d.addErrback(self.handleError)
         return d
 
+    def cleanup(self):
+        return self.plugin.cleanup(self.config)
+
     def processResults(self, result):
         self.sendEvents(result['events'])
         self.storeValues(result['values'])

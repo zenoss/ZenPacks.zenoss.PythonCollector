@@ -151,6 +151,12 @@ class MyPlugin(PythonDataSourcePlugin):
         onSuccess or onError method to be used without further processing.
         """
         return result
+
+    def cleanup(self, config):
+        """
+        Called when collector exits, or task is deleted or changed.
+        """
+        return
 </syntaxhighlight>
 
 == Extending the Python Data Source Type ==
