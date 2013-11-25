@@ -167,3 +167,7 @@ class PythonDataSourcePlugin(object):
     def onComplete(self, result, config):
         """Called last for success and error."""
         return result
+
+    def cleanup(self, config):
+        """Called when collector exits, or task is deleted or recreated."""
+        return
