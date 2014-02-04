@@ -110,7 +110,8 @@ class PythonCollectionTask(BaseTask):
         plugin_class = load_plugin_class(
             self.config.datasources[0].plugin_classname)
 
-        self.plugin = plugin_class()
+        # New in 1.3: Added passing of config to plugin constructor.
+        self.plugin = plugin_class(config=self.config)
 
     def doTask(self):
         """Collect a single PythonDataSource."""
