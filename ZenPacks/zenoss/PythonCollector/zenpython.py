@@ -128,9 +128,21 @@ class PythonCollectionTask(BaseTask):
         return self.plugin.cleanup(self.config)
 
     def processResults(self, result):
-        self.sendEvents(result['events'])
-        self.storeValues(result['values'])
-        self.applyMaps(result['maps'])
+        if not result:
+            # New in 1.3. Now safe to return no results.
+            return
+
+        # New in 1.3. It's OK to not set results events key.
+        if 'events' in result:
+            self.sendEvents(result['events'])
+
+        # New in 1.3. It's OK to not set results values key.
+        if 'values' in result:
+            self.storeValues(result['values'])
+
+        # New in 1.3. It's OK to not set results maps key.
+        if 'maps' in result:
+            self.applyMaps(result['maps'])
 
     def sendEvents(self, events):
         if not events:
