@@ -173,7 +173,12 @@ class PythonCollectionTask(BaseTask):
 
             for dp_id, dp_value in component_values.items():
                 for dp in datasource.points:
-                    if dp.id != dp_id:
+                    dpname = '_'.join((datasource.datasource, dp.id))
+
+                    # New in 1.3: Values can now use either the
+                    # datapoint id, or datasource_datapoint syntax in
+                    # the component values dictionary.
+                    if dp_id not in (dpname, dp.id):
                         continue
 
                     threshData = {
