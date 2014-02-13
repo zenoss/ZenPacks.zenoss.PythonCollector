@@ -16,6 +16,8 @@ Event and statistic collection daemon for python modules.
 import logging
 log = logging.getLogger('zen.python')
 
+import inspect
+
 import Globals
 
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -111,7 +113,10 @@ class PythonCollectionTask(BaseTask):
             self.config.datasources[0].plugin_classname)
 
         # New in 1.3: Added passing of config to plugin constructor.
-        self.plugin = plugin_class(config=self.config)
+        if 'config' in inspect.getargspec(plugin_class.__init__).args:
+            self.plugin = plugin_class(config=self.config)
+        else:
+            self.plugin = plugin_class()
 
     def doTask(self):
         """Collect a single PythonDataSource."""
