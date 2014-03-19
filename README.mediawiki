@@ -11,6 +11,7 @@ To create a ''Python'' data source directly you should first implement the Pytho
 Assuming you have a ZenPack named ZenPacks.example.PackName you would create a ZenPacks/example/PackName/dsplugins.py file with contents like the following.
 
 <syntaxhighlight lang="python">
+import time
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
 
@@ -94,6 +95,7 @@ class MyPlugin(PythonDataSourcePlugin):
         You should return a data structure with zero or more events, values
         and maps.
         """
+        collectionTime = time.time()
         return {
             'events': [{
                 'summary': 'successful collection',
@@ -110,14 +112,18 @@ class MyPlugin(PythonDataSourcePlugin):
                 }],
 
             'values': {
-                None: {  # datapoints for the device (no component)
-                    'datapoint1': 123.4,
-                    'datapoint2': 5.678,
+                None: {
+                    # datapoints for the device (no component)
+                    'datasource1_datapoint1': (123.4, collectionTime),
+                    'datasource1_datapoint2': (5.678, collectionTime),
                     },
                 'cpu1': {
-                    'user': 12.1,
-                    'system': 1.21,
-                    'io': 23,
+                    # datapoints can be specified per datasource...
+                    'datasource1_user': (12.1, collectionTime),
+                    'datasource2_user': (13.2, collectionTime),
+                    # or just by id
+                    'datasource1_system': (1.21, collectionTime),
+                    'io': (23, collectionTime),
                     }
                 },
 
