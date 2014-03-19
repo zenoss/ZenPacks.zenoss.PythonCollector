@@ -133,6 +133,14 @@ class PythonDataSourcePlugin(object):
         """
         return {}
 
+    def __init__(self, config=None):
+        """Initialize the plugin with a configuration.
+
+        New in version 1.3.
+
+        """
+        pass
+
     def new_data(self):
         """
         Return an empty data structure.

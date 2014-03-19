@@ -16,6 +16,8 @@ Event and statistic collection daemon for python modules.
 import logging
 log = logging.getLogger('zen.python')
 
+import inspect
+
 import Globals
 
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -110,7 +112,11 @@ class PythonCollectionTask(BaseTask):
         plugin_class = load_plugin_class(
             self.config.datasources[0].plugin_classname)
 
-        self.plugin = plugin_class()
+        # New in 1.3: Added passing of config to plugin constructor.
+        if 'config' in inspect.getargspec(plugin_class.__init__).args:
+            self.plugin = plugin_class(config=self.config)
+        else:
+            self.plugin = plugin_class()
 
     def doTask(self):
         """Collect a single PythonDataSource."""
@@ -127,9 +133,21 @@ class PythonCollectionTask(BaseTask):
         return self.plugin.cleanup(self.config)
 
     def processResults(self, result):
-        self.sendEvents(result['events'])
-        self.storeValues(result['values'])
-        self.applyMaps(result['maps'])
+        if not result:
+            # New in 1.3. Now safe to return no results.
+            return
+
+        # New in 1.3. It's OK to not set results events key.
+        if 'events' in result:
+            self.sendEvents(result['events'])
+
+        # New in 1.3. It's OK to not set results values key.
+        if 'values' in result:
+            self.storeValues(result['values'])
+
+        # New in 1.3. It's OK to not set results maps key.
+        if 'maps' in result:
+            self.applyMaps(result['maps'])
 
     def sendEvents(self, events):
         if not events:
@@ -160,7 +178,12 @@ class PythonCollectionTask(BaseTask):
 
             for dp_id, dp_value in component_values.items():
                 for dp in datasource.points:
-                    if dp.id != dp_id:
+                    dpname = '_'.join((datasource.datasource, dp.id))
+
+                    # New in 1.3: Values can now use either the
+                    # datapoint id, or datasource_datapoint syntax in
+                    # the component values dictionary.
+                    if dp_id not in (dpname, dp.id):
                         continue
 
                     threshData = {
