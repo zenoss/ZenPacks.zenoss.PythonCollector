@@ -12,6 +12,9 @@ Assuming you have a ZenPack named ZenPacks.example.PackName you would create a Z
 
 <syntaxhighlight lang="python">
 import time
+
+from Products.ZenEvents import ZenEventClasses
+
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSourcePlugin
 
@@ -100,15 +103,15 @@ class MyPlugin(PythonDataSourcePlugin):
             'events': [{
                 'summary': 'successful collection',
                 'eventKey': 'myPlugin_result',
-                'severity': 0,
+                'severity': ZenEventClasses.Clear,
                 },{
                 'summary': 'first event summary',
                 'eventKey': 'myPlugin_result',
-                'severity': 2,
+                'severity': ZenEventClasses.Info,
                 },{
                 'summary': 'second event summary',
                 'eventKey': 'myPlugin_result',
-                'severity': 3,
+                'severity': ZenEventClasses.Warning,
                 }],
 
             'values': {
