@@ -136,9 +136,11 @@ class PythonConfig(CollectorConfigService):
                 # Populate attributes requested by plugin.
                 plugin_class = load_plugin_class(ds.plugin_classname)
                 for attr in plugin_class.proxy_attributes:
-                    setattr(
-                        ds_config, attr,
-                        getattr(deviceOrComponent, attr, None))
+                    value = getattr(deviceOrComponent, attr, None)
+                    if callable(value):
+                        value = value()
+
+                    setattr(ds_config, attr, value)
 
                 yield ds_config
 

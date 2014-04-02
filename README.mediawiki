@@ -250,6 +250,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
+;In Development
+* Support callables in PythonDataSourcePlugin.proxy_attributes.
+
 ;1.3.0 (2014-03-20)
 * Optionally pass config into datasource plugins' __init__.
 * Support ds_dp syntax for data['values'] keys.
