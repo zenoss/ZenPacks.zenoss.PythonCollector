@@ -206,6 +206,9 @@ class PythonCollectionTask(BaseTask):
                 if isinstance(dp_value[0], (list, tuple)):
                     for value in dp_value: 
                         write_datapoint(datasource, dp_id, value)
+                elif isinstance(dp_value[0], (string, float, int)):
+                    dp_value = (dp_value, 'N')
+                    write_datapoint(datasource, dp_id, dp_value)
                 else:
                     write_datapoint(datasource, dp_id, dp_value)
 
