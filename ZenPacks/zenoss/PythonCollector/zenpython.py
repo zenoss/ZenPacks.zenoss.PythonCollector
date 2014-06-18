@@ -205,7 +205,7 @@ class PythonCollectionTask(BaseTask):
             for dp_id, dp_value in component_values.items():
                 if isinstance(dp_value[0], (list, tuple)):
                     for value in dp_value: 
-                        write_datpoint(datasource, dp_id, value)
+                        write_datapoint(datasource, dp_id, value)
                 else:
                     write_datapoint(datasource, dp_id, dp_value)
 
