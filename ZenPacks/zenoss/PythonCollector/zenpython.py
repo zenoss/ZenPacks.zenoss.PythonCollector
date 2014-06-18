@@ -204,7 +204,7 @@ class PythonCollectionTask(BaseTask):
 
             for dp_id, dp_value in component_values.items():
                 if isinstance(dp_value[0], (list, tuple)):
-                    for value in dp_value: 
+                    for value in sorted(dp_value, key=lambda x: x[1]): 
                         write_datapoint(datasource, dp_id, value)
                 elif isinstance(dp_value[0], (string, float, int)):
                     dp_value = (dp_value, 'N')
