@@ -176,14 +176,14 @@ class PythonCollectionTask(BaseTask):
             if not component_values:
                 continue
 
-            def write_datapoint(datasource, id, value):
+            def write_datapoint(datasource, data_id, value):
                 for dp in datasource.points:
                     dpname = '_'.join((datasource.datasource, dp.id))
 
                     # New in 1.3: Values can now use either the
                     # datapoint id, or datasource_datapoint syntax in
                     # the component values dictionary.
-                    if id not in (dpname, dp.id):
+                    if data_id not in (dpname, dp.id):
                         continue
 
                     threshData = {
