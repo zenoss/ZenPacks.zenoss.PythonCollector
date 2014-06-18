@@ -176,14 +176,14 @@ class PythonCollectionTask(BaseTask):
             if not component_values:
                 continue
 
-            for dp_id, dp_value in component_values.items():
+            def write_datapoint(datasource, id, value):
                 for dp in datasource.points:
                     dpname = '_'.join((datasource.datasource, dp.id))
 
                     # New in 1.3: Values can now use either the
                     # datapoint id, or datasource_datapoint syntax in
                     # the component values dictionary.
-                    if dp_id not in (dpname, dp.id):
+                    if id not in (dpname, dp.id):
                         continue
 
                     threshData = {
@@ -193,14 +193,21 @@ class PythonCollectionTask(BaseTask):
 
                     self._dataService.writeRRD(
                         dp.rrdPath,
-                        dp_value[0],
+                        value[0],
                         dp.rrdType,
                         rrdCommand=dp.rrdCreateCommand,
                         cycleTime=datasource.cycletime,
                         min=dp.rrdMin,
                         max=dp.rrdMax,
                         threshEventData=threshData,
-                        timestamp=dp_value[1])
+                        timestamp=value[1])
+
+            for dp_id, dp_value in component_values.items():
+                if isinstance(dp_value[0], (list, tuple)):
+                    for value in dp_value: 
+                        write_datpoint(datasource, dp_id, value)
+                else:
+                    write_datapoint(datasource, dp_id, dp_value)
 
     @inlineCallbacks
     def applyMaps(self, maps):
