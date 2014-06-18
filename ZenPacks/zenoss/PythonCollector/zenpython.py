@@ -208,7 +208,7 @@ class PythonCollectionTask(BaseTask):
                     # on the client side as well
                     for value in sorted(dp_value, key=lambda x: x[1]): 
                         write_datapoint(datasource, dp_id, value)
-                elif isinstance(dp_value[0], (string, float, int)):
+                elif isinstance(dp_value[0], (str, float, int)):
                     dp_value = (dp_value, 'N')
                     write_datapoint(datasource, dp_id, dp_value)
                 else:
