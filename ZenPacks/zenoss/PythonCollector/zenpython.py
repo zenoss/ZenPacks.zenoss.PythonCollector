@@ -20,7 +20,7 @@ import inspect
 
 import Globals
 
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import Deferred, DeferredList
 from twisted.spread import pb
 
 import zope.interface
@@ -107,6 +107,10 @@ class PythonCollectionTask(BaseTask):
         self._collector = zope.component.queryUtility(ICollector)
         self._dataService = zope.component.queryUtility(IDataService)
         self._eventService = zope.component.queryUtility(IEventService)
+        self._preferences = zope.component.queryUtility(
+            ICollectorPreferences, 'zenpython')
+
+        self.cycling = self._preferences.options.cycle
 
         from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
         plugin_class = load_plugin_class(
@@ -124,9 +128,9 @@ class PythonCollectionTask(BaseTask):
         d.addBoth(self.plugin.onResult, self.config)
         d.addCallback(self.plugin.onSuccess, self.config)
         d.addErrback(self.plugin.onError, self.config)
+        d.addErrback(self.handleError)
         d.addBoth(self.plugin.onComplete, self.config)
         d.addCallback(self.processResults)
-        d.addErrback(self.handleError)
         return d
 
     def cleanup(self):
@@ -137,17 +141,25 @@ class PythonCollectionTask(BaseTask):
             # New in 1.3. Now safe to return no results.
             return
 
+        deferreds = []
+
         # New in 1.3. It's OK to not set results events key.
         if 'events' in result:
-            self.sendEvents(result['events'])
+            deferreds.append(self.sendEvents(result['events']))
 
         # New in 1.3. It's OK to not set results values key.
         if 'values' in result:
-            self.storeValues(result['values'])
+            deferreds.append(self.storeValues(result['values']))
 
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
-            self.applyMaps(result['maps'])
+            deferreds.append(self.applyMaps(result['maps']))
+
+        # When not cycling we have to wait for these deferreds to fire.
+        if not self.cycling and deferreds:
+            return DeferredList(
+                [x for x in deferreds if isinstance(x, Deferred)],
+                consumeErrors=True)
 
     def sendEvents(self, events):
         if not events:
@@ -202,26 +214,31 @@ class PythonCollectionTask(BaseTask):
                         threshEventData=threshData,
                         timestamp=dp_value[1])
 
-    @inlineCallbacks
     def applyMaps(self, maps):
         if not maps:
-            returnValue(None)
+            return
 
         self.state = PythonCollectionTask.STATE_APPLY_MAPS
 
         remoteProxy = self._collector.getRemoteConfigServiceProxy()
 
-        log.debug('Applying %s datamaps to %s', len(maps), self.configId)
-        changed = yield remoteProxy.callRemote(
-            'applyDataMaps', self.configId, maps)
+        log.warn("%s sending %s datamaps", self.name, len(maps))
+        d = remoteProxy.callRemote('applyDataMaps', self.configId, maps)
 
-        if changed:
-            log.debug('Changes applied to %s', self.configId)
-        else:
-            log.debug('No changes applied to %s', self.configId)
+        def applyMapsCallback(changed):
+            if changed:
+                log.warn("%s changes applied", self.name)
+            else:
+                log.warn("%s no changes applied", self.name)
+
+        def applyMapsErrback(failure):
+            log.warn("%s lost %s datamaps", self.name, len(maps))
+
+        d.addCallbacks(applyMapsCallback, applyMapsErrback)
+        return d
 
     def handleError(self, result):
-        log.error('unhandled plugin error: %s', result)
+        log.error('%s unhandled plugin error: %s', self.name, result)
 
 
 def main():
