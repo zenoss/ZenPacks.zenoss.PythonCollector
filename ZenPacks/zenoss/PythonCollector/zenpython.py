@@ -147,7 +147,9 @@ class PythonCollectionTask(BaseTask):
 
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
-            self.applyMaps(result['maps'])
+            # returning chained deferred for deferred in doTask
+            # not finish before we finished applying maps
+            return self.applyMaps(result['maps'])
 
     def sendEvents(self, events):
         if not events:
