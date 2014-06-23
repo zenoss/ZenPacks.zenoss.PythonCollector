@@ -20,7 +20,7 @@ import inspect
 
 import Globals
 
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.spread import pb
 
 import zope.interface
@@ -153,13 +153,12 @@ class PythonCollectionTask(BaseTask):
 
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
-            deferreds.append(self.applyMaps(result['maps']))
+            d = self.applyMaps(result['maps'])
 
-        # When not cycling we have to wait for these deferreds to fire.
-        if not self.cycling and deferreds:
-            return DeferredList(
-                [x for x in deferreds if isinstance(x, Deferred)],
-                consumeErrors=True)
+            # We should only block the task on applying datamaps when
+            # not cycling.
+            if d and not self.cycling:
+                return d
 
     def sendEvents(self, events):
         if not events:
@@ -214,28 +213,27 @@ class PythonCollectionTask(BaseTask):
                         threshEventData=threshData,
                         timestamp=dp_value[1])
 
+    @inlineCallbacks
     def applyMaps(self, maps):
         if not maps:
-            return
+            returnValue(None)
 
         self.state = PythonCollectionTask.STATE_APPLY_MAPS
 
         remoteProxy = self._collector.getRemoteConfigServiceProxy()
 
         log.warn("%s sending %s datamaps", self.name, len(maps))
-        d = remoteProxy.callRemote('applyDataMaps', self.configId, maps)
 
-        def applyMapsCallback(changed):
+        try:
+            changed = yield remoteProxy.callRemote(
+                'applyDataMaps', self.configId, maps)
+        except Exception, e:
+            log.exception("%s lost %s datamaps", self.name, len(maps))
+        else:
             if changed:
                 log.warn("%s changes applied", self.name)
             else:
                 log.warn("%s no changes applied", self.name)
-
-        def applyMapsErrback(failure):
-            log.warn("%s lost %s datamaps", self.name, len(maps))
-
-        d.addCallbacks(applyMapsCallback, applyMapsErrback)
-        return d
 
     def handleError(self, result):
         log.error('%s unhandled plugin error: %s', self.name, result)
