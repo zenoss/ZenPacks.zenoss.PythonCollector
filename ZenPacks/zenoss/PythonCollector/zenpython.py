@@ -128,9 +128,9 @@ class PythonCollectionTask(BaseTask):
         d.addBoth(self.plugin.onResult, self.config)
         d.addCallback(self.plugin.onSuccess, self.config)
         d.addErrback(self.plugin.onError, self.config)
-        d.addErrback(self.handleError)
         d.addBoth(self.plugin.onComplete, self.config)
         d.addCallback(self.processResults)
+        d.addErrback(self.handleError)
         return d
 
     def cleanup(self):
@@ -141,15 +141,13 @@ class PythonCollectionTask(BaseTask):
             # New in 1.3. Now safe to return no results.
             return
 
-        deferreds = []
-
         # New in 1.3. It's OK to not set results events key.
         if 'events' in result:
-            deferreds.append(self.sendEvents(result['events']))
+            self.sendEvents(result['events'])
 
         # New in 1.3. It's OK to not set results values key.
         if 'values' in result:
-            deferreds.append(self.storeValues(result['values']))
+            self.storeValues(result['values'])
 
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
@@ -222,7 +220,7 @@ class PythonCollectionTask(BaseTask):
 
         remoteProxy = self._collector.getRemoteConfigServiceProxy()
 
-        log.warn("%s sending %s datamaps", self.name, len(maps))
+        log.debug("%s sending %s datamaps", self.name, len(maps))
 
         try:
             changed = yield remoteProxy.callRemote(
@@ -231,9 +229,9 @@ class PythonCollectionTask(BaseTask):
             log.exception("%s lost %s datamaps", self.name, len(maps))
         else:
             if changed:
-                log.warn("%s changes applied", self.name)
+                log.debug("%s changes applied", self.name)
             else:
-                log.warn("%s no changes applied", self.name)
+                log.debug("%s no changes applied", self.name)
 
     def handleError(self, result):
         log.error('%s unhandled plugin error: %s', self.name, result)
