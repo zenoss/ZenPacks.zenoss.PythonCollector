@@ -107,6 +107,10 @@ class PythonCollectionTask(BaseTask):
         self._collector = zope.component.queryUtility(ICollector)
         self._dataService = zope.component.queryUtility(IDataService)
         self._eventService = zope.component.queryUtility(IEventService)
+        self._preferences = zope.component.queryUtility(
+            ICollectorPreferences, 'zenpython')
+
+        self.cycling = self._preferences.options.cycle
 
         from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
         plugin_class = load_plugin_class(
@@ -147,7 +151,12 @@ class PythonCollectionTask(BaseTask):
 
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
-            self.applyMaps(result['maps'])
+            d = self.applyMaps(result['maps'])
+
+            # We should only block the task on applying datamaps when
+            # not cycling.
+            if d and not self.cycling:
+                return d
 
     def sendEvents(self, events):
         if not events:
@@ -211,17 +220,21 @@ class PythonCollectionTask(BaseTask):
 
         remoteProxy = self._collector.getRemoteConfigServiceProxy()
 
-        log.debug('Applying %s datamaps to %s', len(maps), self.configId)
-        changed = yield remoteProxy.callRemote(
-            'applyDataMaps', self.configId, maps)
+        log.debug("%s sending %s datamaps", self.name, len(maps))
 
-        if changed:
-            log.debug('Changes applied to %s', self.configId)
+        try:
+            changed = yield remoteProxy.callRemote(
+                'applyDataMaps', self.configId, maps)
+        except Exception, e:
+            log.exception("%s lost %s datamaps", self.name, len(maps))
         else:
-            log.debug('No changes applied to %s', self.configId)
+            if changed:
+                log.debug("%s changes applied", self.name)
+            else:
+                log.debug("%s no changes applied", self.name)
 
     def handleError(self, result):
-        log.error('unhandled plugin error: %s', result)
+        log.error('%s unhandled plugin error: %s', self.name, result)
 
 
 def main():
