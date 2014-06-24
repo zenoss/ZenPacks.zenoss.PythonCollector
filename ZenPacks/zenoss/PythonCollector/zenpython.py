@@ -203,6 +203,9 @@ class PythonCollectionTask(BaseTask):
                         timestamp=value[1])
 
             for dp_id, dp_value in component_values.items():
+                # skip writing if there are no values
+                if not dp_value:
+                    continue
                 if isinstance(dp_value[0], (list, tuple)):
                     # TODO filter out multiple 'N' timestamps but this can be handled
                     # on the client side as well
