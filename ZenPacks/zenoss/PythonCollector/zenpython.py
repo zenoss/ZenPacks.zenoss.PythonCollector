@@ -200,6 +200,7 @@ class PythonCollectionTask(BaseTask):
                         min=dp.rrdMin,
                         max=dp.rrdMax,
                         threshEventData=threshData,
+                        allowStaleDatapoint=False,
                         timestamp=value[1])
 
             for dp_id, dp_value in component_values.items():
