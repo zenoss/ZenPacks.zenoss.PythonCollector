@@ -1,4 +1,3 @@
-##############################################################################
 #
 # Copyright (C) Zenoss, Inc. 2012, all rights reserved.
 #
@@ -57,6 +56,36 @@ if 'allowStaleDatapoint' in inspect.getargspec(CollectorDaemon.writeRRD).args:
 else:
     WRITERRD_ARGS = {}
 
+def checkInputs(value):
+    if isinstance(value, (str, float, int)):
+        return (value, 'N')
+    if isinstance(value, (list, tuple)):
+        nested_items=False
+        for item in value:
+            if isinstance(item, (list, tuple)):
+                nested_items=True
+        if not nested_items:
+            if len(value) == 2:
+                return value
+            else:
+                log.warn("Invalid values %s" % (value,))
+                return None
+        else:
+            isTuple=False
+            if isinstance(value, tuple):
+                isTuple=True
+            value = list(value)
+            for place, item in enumerate(value):
+                if isinstance(item, (str, float, int)):
+                    value[place] = (item, 'N')
+                elif len(item) > 2:
+                    log.warn("Invalid values %s" % (value,))
+                    return None
+
+            if isTuple:
+                return tuple(value)
+            else:
+                return value
 
 class Preferences(object):
     zope.interface.implements(ICollectorPreferences)
@@ -182,7 +211,7 @@ class PythonCollectionTask(BaseTask):
             if not component_values:
                 continue
 
-            def write_datapoint(datasource, data_id, value):
+            def write_datapoint_values(datasource, data_id, values):
                 for dp in datasource.points:
                     dpname = '_'.join((datasource.datasource, dp.id))
 
@@ -197,33 +226,22 @@ class PythonCollectionTask(BaseTask):
                         'component': datasource.component,
                         }
 
-                    self._dataService.writeRRD(
-                        dp.rrdPath,
-                        value[0],
-                        dp.rrdType,
-                        rrdCommand=dp.rrdCreateCommand,
-                        cycleTime=datasource.cycletime,
-                        min=dp.rrdMin,
-                        max=dp.rrdMax,
-                        threshEventData=threshData,
-                        timestamp=value[1],
-                        **WRITERRD_ARGS)
+                    for value in sorted(values, key=lambda x: x[1]):
+                        self._dataService.writeRRD(
+                            dp.rrdPath,
+                            value[0],
+                            dp.rrdType,
+                            rrdCommand=dp.rrdCreateCommand,
+                            cycleTime=datasource.cycletime,
+                            min=dp.rrdMin,
+                            max=dp.rrdMax,
+                            threshEventData=threshData,
+                            timestamp=value[1],
+                            **WRITERRD_ARGS)
 
-            for dp_id, dp_value in component_values.items():
-                # skip writing if there are no values
-                if not dp_value:
-                    continue
-                if isinstance(dp_value[0], (list, tuple)):
-                    # TODO filter out multiple 'N' timestamps but this can be handled
-                    # on the client side as well
-                    for value in sorted(dp_value, key=lambda x: x[1]):
-                        write_datapoint(datasource, dp_id, value)
-                elif isinstance(dp_value[0], (str, float, int)):
-                    dp_value = (dp_value, 'N')
-                    write_datapoint(datasource, dp_id, dp_value)
-                else:
-                    write_datapoint(datasource, dp_id, dp_value)
-
+            for dp_id, dp_values in component_values.items():
+                write_datapoint_values(datasource, dp_id, checkInputs(dp_values))
+ 
     @inlineCallbacks
     def applyMaps(self, maps):
         if not maps:
