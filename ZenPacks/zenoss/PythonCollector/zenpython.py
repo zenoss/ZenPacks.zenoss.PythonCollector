@@ -51,6 +51,12 @@ unused(Globals)
 
 pb.setUnjellyableForClass(PythonDataSourceConfig, PythonDataSourceConfig)
 
+# allowStaleDatapoint isn't available in Zenoss 4.1.
+if 'allowStaleDatapoint' in inspect.getargspec(CollectorDaemon.writeRRD).args:
+    WRITERRD_ARGS = {'allowStaleDatapoint': False}
+else:
+    WRITERRD_ARGS = {}
+
 
 class Preferences(object):
     zope.interface.implements(ICollectorPreferences)
@@ -200,8 +206,8 @@ class PythonCollectionTask(BaseTask):
                         min=dp.rrdMin,
                         max=dp.rrdMax,
                         threshEventData=threshData,
-                        allowStaleDatapoint=False,
-                        timestamp=value[1])
+                        timestamp=value[1],
+                        **WRITERRD_ARGS)
 
             for dp_id, dp_value in component_values.items():
                 # skip writing if there are no values
@@ -210,7 +216,7 @@ class PythonCollectionTask(BaseTask):
                 if isinstance(dp_value[0], (list, tuple)):
                     # TODO filter out multiple 'N' timestamps but this can be handled
                     # on the client side as well
-                    for value in sorted(dp_value, key=lambda x: x[1]): 
+                    for value in sorted(dp_value, key=lambda x: x[1]):
                         write_datapoint(datasource, dp_id, value)
                 elif isinstance(dp_value[0], (str, float, int)):
                     dp_value = (dp_value, 'N')
