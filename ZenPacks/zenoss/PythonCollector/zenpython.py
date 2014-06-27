@@ -69,7 +69,7 @@ def checkInputs(value):
                 return value
             else:
                 log.warn("Invalid values %s" % (value,))
-                return None
+                return []
         else:
             isTuple=False
             if isinstance(value, tuple):
@@ -80,7 +80,7 @@ def checkInputs(value):
                     value[place] = (item, 'N')
                 elif len(item) > 2:
                     log.warn("Invalid values %s" % (value,))
-                    return None
+                    return []
 
             if isTuple:
                 return tuple(value)
