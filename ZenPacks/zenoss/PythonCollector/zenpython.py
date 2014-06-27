@@ -20,6 +20,7 @@ import inspect
 
 import Globals
 
+from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.spread import pb
 
@@ -172,7 +173,10 @@ class PythonCollectionTask(BaseTask):
             event.setdefault('device', self.configId)
             event.setdefault('severity', ZenEventClasses.Info)
 
-        self._eventService.sendEvents(events)
+        # On CTRL-C or exit the reactor might stop before we get to this
+        # call and generate a traceback.
+        if reactor.running:
+            self._eventService.sendEvents(events)
 
     def storeValues(self, values):
         if not values:
