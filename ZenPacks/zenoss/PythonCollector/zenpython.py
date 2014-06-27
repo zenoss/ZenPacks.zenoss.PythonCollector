@@ -1,4 +1,3 @@
-##############################################################################
 #
 # Copyright (C) Zenoss, Inc. 2012, all rights reserved.
 #
@@ -52,6 +51,42 @@ unused(Globals)
 
 pb.setUnjellyableForClass(PythonDataSourceConfig, PythonDataSourceConfig)
 
+# allowStaleDatapoint isn't available in Zenoss 4.1.
+if 'allowStaleDatapoint' in inspect.getargspec(CollectorDaemon.writeRRD).args:
+    WRITERRD_ARGS = {'allowStaleDatapoint': False}
+else:
+    WRITERRD_ARGS = {}
+
+def checkInputs(value):
+    if isinstance(value, (str, float, int)):
+        return (value, 'N')
+    if isinstance(value, (list, tuple)):
+        nested_items=False
+        for item in value:
+            if isinstance(item, (list, tuple)):
+                nested_items=True
+        if not nested_items:
+            if len(value) == 2:
+                return value
+            else:
+                log.warn("Invalid values %s" % (value,))
+                return []
+        else:
+            isTuple=False
+            if isinstance(value, tuple):
+                isTuple=True
+            value = list(value)
+            for place, item in enumerate(value):
+                if isinstance(item, (str, float, int)):
+                    value[place] = (item, 'N')
+                elif len(item) > 2:
+                    log.warn("Invalid values %s" % (value,))
+                    return []
+
+            if isTuple:
+                return tuple(value)
+            else:
+                return value
 
 class Preferences(object):
     zope.interface.implements(ICollectorPreferences)
@@ -189,14 +224,14 @@ class PythonCollectionTask(BaseTask):
             if not component_values:
                 continue
 
-            for dp_id, dp_value in component_values.items():
+            def write_datapoint_values(datasource, data_id, values):
                 for dp in datasource.points:
                     dpname = '_'.join((datasource.datasource, dp.id))
 
                     # New in 1.3: Values can now use either the
                     # datapoint id, or datasource_datapoint syntax in
                     # the component values dictionary.
-                    if dp_id not in (dpname, dp.id):
+                    if data_id not in (dpname, dp.id):
                         continue
 
                     threshData = {
@@ -204,17 +239,22 @@ class PythonCollectionTask(BaseTask):
                         'component': datasource.component,
                         }
 
-                    self._dataService.writeRRD(
-                        dp.rrdPath,
-                        dp_value[0],
-                        dp.rrdType,
-                        rrdCommand=dp.rrdCreateCommand,
-                        cycleTime=datasource.cycletime,
-                        min=dp.rrdMin,
-                        max=dp.rrdMax,
-                        threshEventData=threshData,
-                        timestamp=dp_value[1])
+                    for value in sorted(values, key=lambda x: x[1]):
+                        self._dataService.writeRRD(
+                            dp.rrdPath,
+                            value[0],
+                            dp.rrdType,
+                            rrdCommand=dp.rrdCreateCommand,
+                            cycleTime=datasource.cycletime,
+                            min=dp.rrdMin,
+                            max=dp.rrdMax,
+                            threshEventData=threshData,
+                            timestamp=value[1],
+                            **WRITERRD_ARGS)
 
+            for dp_id, dp_values in component_values.items():
+                write_datapoint_values(datasource, dp_id, checkInputs(dp_values))
+ 
     @inlineCallbacks
     def applyMaps(self, maps):
         if not maps:
