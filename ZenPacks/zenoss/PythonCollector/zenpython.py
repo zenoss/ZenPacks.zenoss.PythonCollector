@@ -46,11 +46,19 @@ from Products.ZenCollector.tasks import (
 from Products.ZenEvents import ZenEventClasses
 from Products.ZenUtils.Utils import unused
 
+from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
 
 unused(Globals)
 
 pb.setUnjellyableForClass(PythonDataSourceConfig, PythonDataSourceConfig)
+
+
+# allowStaleDatapoint isn't available in Zenoss 4.1.
+if 'allowStaleDatapoint' in inspect.getargspec(CollectorDaemon.writeRRD).args:
+    WRITERRD_ARGS = {'allowStaleDatapoint': False}
+else:
+    WRITERRD_ARGS = {}
 
 
 class Preferences(object):
@@ -204,16 +212,18 @@ class PythonCollectionTask(BaseTask):
                         'component': datasource.component,
                         }
 
-                    self._dataService.writeRRD(
-                        dp.rrdPath,
-                        dp_value[0],
-                        dp.rrdType,
-                        rrdCommand=dp.rrdCreateCommand,
-                        cycleTime=datasource.cycletime,
-                        min=dp.rrdMin,
-                        max=dp.rrdMax,
-                        threshEventData=threshData,
-                        timestamp=dp_value[1])
+                    for value, timestamp in get_dp_values(dp_value):
+                        self._dataService.writeRRD(
+                            dp.rrdPath,
+                            value,
+                            dp.rrdType,
+                            rrdCommand=dp.rrdCreateCommand,
+                            cycleTime=datasource.cycletime,
+                            min=dp.rrdMin,
+                            max=dp.rrdMax,
+                            threshEventData=threshData,
+                            timestamp=timestamp,
+                            **WRITERRD_ARGS)
 
     @inlineCallbacks
     def applyMaps(self, maps):

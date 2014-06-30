@@ -250,6 +250,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
+;1.5.0 (TBD)
+* Support collection of data for multiple timestamps in one interval.
+
 ;1.4.0 (2014-04-02)
 * Support callables in PythonDataSourcePlugin.proxy_attributes.
 
