@@ -17,6 +17,7 @@ from twisted.spread import pb
 from Products.DataCollector.ApplyDataMap import ApplyDataMap
 from Products.ZenCollector.services.config import CollectorConfigService
 from Products.ZenRRD.zencommand import DataPointConfig
+from Products.ZenUtils.ZenTales import talesEvalStr
 
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
     import PythonDataSource
@@ -112,7 +113,25 @@ class PythonConfig(CollectorConfigService):
                         if key in known_point_properties:
                             continue
                         try:
-                            setattr(dp_config, key, getattr(dp, key))
+                            value = getattr(dp, key)
+                            if isinstance(value, basestring) and '$' in value:
+                                device = deviceOrComponent.device()
+                                extra = {
+                                    'device': device,
+                                    'dev': device,
+                                    'devname': device.id,
+                                    'datasource': ds,
+                                    'ds': ds,
+                                    'datapoint': dp,
+                                    'dp': dp,
+                                    }
+
+                                value = talesEvalStr(
+                                    value,
+                                    deviceOrComponent,
+                                    extra=extra)
+
+                            setattr(dp_config, key, value)
                         except Exception:
                             pass
 

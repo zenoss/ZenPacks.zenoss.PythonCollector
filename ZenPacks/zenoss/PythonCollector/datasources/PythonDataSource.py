@@ -50,6 +50,9 @@ class PythonDataSource(ZenPackPersistence, RRDDataSource):
         return self.plugin_classname
 
     def talesEval(self, text, context):
+        if text is None:
+            return
+
         device = context.device()
         extra = {
             'device': device,
