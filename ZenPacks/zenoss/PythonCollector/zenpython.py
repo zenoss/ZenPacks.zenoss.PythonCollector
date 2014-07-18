@@ -20,6 +20,7 @@ import inspect
 
 import Globals
 
+from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.spread import pb
 
@@ -45,11 +46,19 @@ from Products.ZenCollector.tasks import (
 from Products.ZenEvents import ZenEventClasses
 from Products.ZenUtils.Utils import unused
 
+from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
 
 unused(Globals)
 
 pb.setUnjellyableForClass(PythonDataSourceConfig, PythonDataSourceConfig)
+
+
+# allowStaleDatapoint isn't available in Zenoss 4.1.
+if 'allowStaleDatapoint' in inspect.getargspec(CollectorDaemon.writeRRD).args:
+    WRITERRD_ARGS = {'allowStaleDatapoint': False}
+else:
+    WRITERRD_ARGS = {}
 
 
 class Preferences(object):
@@ -107,6 +116,10 @@ class PythonCollectionTask(BaseTask):
         self._collector = zope.component.queryUtility(ICollector)
         self._dataService = zope.component.queryUtility(IDataService)
         self._eventService = zope.component.queryUtility(IEventService)
+        self._preferences = zope.component.queryUtility(
+            ICollectorPreferences, 'zenpython')
+
+        self.cycling = self._preferences.options.cycle
 
         from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
         plugin_class = load_plugin_class(
@@ -147,7 +160,12 @@ class PythonCollectionTask(BaseTask):
 
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
-            self.applyMaps(result['maps'])
+            d = self.applyMaps(result['maps'])
+
+            # We should only block the task on applying datamaps when
+            # not cycling.
+            if d and not self.cycling:
+                return d
 
     def sendEvents(self, events):
         if not events:
@@ -163,7 +181,10 @@ class PythonCollectionTask(BaseTask):
             event.setdefault('device', self.configId)
             event.setdefault('severity', ZenEventClasses.Info)
 
-        self._eventService.sendEvents(events)
+        # On CTRL-C or exit the reactor might stop before we get to this
+        # call and generate a traceback.
+        if reactor.running:
+            self._eventService.sendEvents(events)
 
     def storeValues(self, values):
         if not values:
@@ -191,16 +212,18 @@ class PythonCollectionTask(BaseTask):
                         'component': datasource.component,
                         }
 
-                    self._dataService.writeRRD(
-                        dp.rrdPath,
-                        dp_value[0],
-                        dp.rrdType,
-                        rrdCommand=dp.rrdCreateCommand,
-                        cycleTime=datasource.cycletime,
-                        min=dp.rrdMin,
-                        max=dp.rrdMax,
-                        threshEventData=threshData,
-                        timestamp=dp_value[1])
+                    for value, timestamp in get_dp_values(dp_value):
+                        self._dataService.writeRRD(
+                            dp.rrdPath,
+                            value,
+                            dp.rrdType,
+                            rrdCommand=dp.rrdCreateCommand,
+                            cycleTime=datasource.cycletime,
+                            min=dp.rrdMin,
+                            max=dp.rrdMax,
+                            threshEventData=threshData,
+                            timestamp=timestamp,
+                            **WRITERRD_ARGS)
 
     @inlineCallbacks
     def applyMaps(self, maps):
@@ -211,17 +234,21 @@ class PythonCollectionTask(BaseTask):
 
         remoteProxy = self._collector.getRemoteConfigServiceProxy()
 
-        log.debug('Applying %s datamaps to %s', len(maps), self.configId)
-        changed = yield remoteProxy.callRemote(
-            'applyDataMaps', self.configId, maps)
+        log.debug("%s sending %s datamaps", self.name, len(maps))
 
-        if changed:
-            log.debug('Changes applied to %s', self.configId)
+        try:
+            changed = yield remoteProxy.callRemote(
+                'applyDataMaps', self.configId, maps)
+        except Exception, e:
+            log.exception("%s lost %s datamaps", self.name, len(maps))
         else:
-            log.debug('No changes applied to %s', self.configId)
+            if changed:
+                log.debug("%s changes applied", self.name)
+            else:
+                log.debug("%s no changes applied", self.name)
 
     def handleError(self, result):
-        log.error('unhandled plugin error: %s', result)
+        log.error('%s unhandled plugin error: %s', self.name, result)
 
 
 def main():
