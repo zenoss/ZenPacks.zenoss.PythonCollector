@@ -30,7 +30,7 @@ def get_dp_values(input_values):
             (123, 'N'), (123.4, 1404160028), ('123.4', 1404160028.789839),
         ]
     """
-    is_value = lambda x: isinstance(x, (basestring, float, int))
+    is_value = lambda x: isinstance(x, (basestring, float, int, long))
     is_timestamp = lambda x: get_dp_ts(x) is not None
     is_value_ts = lambda x: isinstance(x, (list, tuple)) and len(x) == 2 and is_value(x[0]) and is_timestamp(x[1])
     is_value_list = lambda x: isinstance(x, (list, tuple))
