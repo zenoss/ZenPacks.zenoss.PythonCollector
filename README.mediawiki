@@ -250,6 +250,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
+;1.5.1 (2014-07-24)
+* Fix bug in handling of long-typed values.
+
 ;1.5.0 (2014-07-03)
 * Fix application of maps in "run" mode.
 * Support TALES evaluation of datapoint properties.
