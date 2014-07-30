@@ -250,6 +250,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
+;1.6.0
+* Add backwards-compatible support for Zenoss 5 writeMetric() API.
+
 ;1.5.1 (2014-07-24)
 * Fix bug in handling of long-typed values.
 

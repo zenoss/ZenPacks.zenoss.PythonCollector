@@ -131,6 +131,9 @@ class PythonCollectionTask(BaseTask):
         else:
             self.plugin = plugin_class()
 
+        # New in 1.6: Support for Zenoss 5's new writeMetric API.
+        self.writeMetric = hasattr(self._dataService, 'writeMetric')
+
     def doTask(self):
         """Collect a single PythonDataSource."""
         d = self.plugin.collect(self.config)
@@ -213,17 +216,30 @@ class PythonCollectionTask(BaseTask):
                         }
 
                     for value, timestamp in get_dp_values(dp_value):
-                        self._dataService.writeRRD(
-                            dp.rrdPath,
-                            value,
-                            dp.rrdType,
-                            rrdCommand=dp.rrdCreateCommand,
-                            cycleTime=datasource.cycletime,
-                            min=dp.rrdMin,
-                            max=dp.rrdMax,
-                            threshEventData=threshData,
-                            timestamp=timestamp,
-                            **WRITERRD_ARGS)
+                        if self.writeMetric:
+                            self._dataService.writeMetric(
+                                dp.contextUUID,
+                                dp.dpName,
+                                value,
+                                dp.rrdType,
+                                dp.component,
+                                deviceuuid=dp.deviceUUID,
+                                min=dp.rrdMin,
+                                max=dp.rrdMax,
+                                threshEventData=threshData,
+                                )
+                        else:
+                            self._dataService.writeRRD(
+                                dp.rrdPath,
+                                value,
+                                dp.rrdType,
+                                rrdCommand=dp.rrdCreateCommand,
+                                cycleTime=datasource.cycletime,
+                                min=dp.rrdMin,
+                                max=dp.rrdMax,
+                                threshEventData=threshData,
+                                timestamp=timestamp,
+                                **WRITERRD_ARGS)
 
     @inlineCallbacks
     def applyMaps(self, maps):
