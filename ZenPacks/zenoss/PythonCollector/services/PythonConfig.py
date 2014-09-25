@@ -95,13 +95,18 @@ class PythonConfig(CollectorConfigService):
                 ds for ds in template.getRRDDataSources() \
                     if ds.enabled and isinstance(ds, PythonDataSource)]
 
+            device = deviceOrComponent.device()
+
             for ds in datasources:
                 datapoints = []
 
                 for dp in ds.datapoints():
                     dp_config = DataPointConfig()
                     dp_config.id = dp.id
+                    dp_config.dpName = dp.name()
                     dp_config.component = componentId
+                    dp_config.contextUUID = deviceOrComponent.getUUID()
+                    dp_config.deviceUUID = device.getUUID()
                     dp_config.rrdPath = '/'.join((deviceOrComponent.rrdPath(), dp.name()))
                     dp_config.rrdType = dp.rrdtype
                     dp_config.rrdCreateCommand = dp.getRRDCreateCommand(collector)
@@ -115,7 +120,6 @@ class PythonConfig(CollectorConfigService):
                         try:
                             value = getattr(dp, key)
                             if isinstance(value, basestring) and '$' in value:
-                                device = deviceOrComponent.device()
                                 extra = {
                                     'device': device,
                                     'dev': device,
