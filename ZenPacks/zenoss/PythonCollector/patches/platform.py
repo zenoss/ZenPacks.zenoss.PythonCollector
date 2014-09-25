@@ -10,6 +10,8 @@
 import logging
 ADM_LOG = logging.getLogger("zen.ApplyDataMap")
 
+import copy
+
 from Products.DataCollector.plugins.DataMaps import ObjectMap
 from Products.ZenEvents import Event
 from Products.ZenEvents.ZenEventClasses import Change_Remove, Change_Remove_Blocked
@@ -35,26 +37,31 @@ def _updateRelationship(self, device, relmap):
         # original is injected by monkeypatch decorator.
         return original(self, device, relmap)
 
-    remove = getattr(relmap, 'remove', False) is True
-    if hasattr(relmap, 'remove'):
-        del(relmap.remove)
+    # Getting here means relmap is a component ObjectMap. We must make a
+    # copy of relmap because this method runs inside a retrying
+    # @transact decorator so side-effects must be avoided.
+    objmap = copy.deepcopy(relmap)
 
-    relname = getattr(relmap, 'relname', None)
-    if hasattr(relmap, 'relname'):
-        del(relmap.relname)
+    remove = getattr(objmap, 'remove', False) is True
+    if hasattr(objmap, 'remove'):
+        del(objmap.remove)
+
+    relname = getattr(objmap, 'relname', None)
+    if hasattr(objmap, 'relname'):
+        del(objmap.relname)
 
     rel = getattr(device, relname, None)
     if not rel:
         return False
 
     if remove:
-        return self._removeRelObject(device, relmap, relname)
+        return self._removeRelObject(device, objmap, relname)
 
-    obj = rel._getOb(relmap.id, None)
+    obj = rel._getOb(objmap.id, None)
     if obj:
-        return self._updateObject(obj, relmap)
+        return self._updateObject(obj, objmap)
 
-    return self._createRelObject(device, relmap, relname)[0]
+    return self._createRelObject(device, objmap, relname)[0]
 
 
 @monkeypatch('Products.DataCollector.ApplyDataMap.ApplyDataMap')
