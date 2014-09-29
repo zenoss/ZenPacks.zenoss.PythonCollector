@@ -250,7 +250,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;In Progress
+;1.5.3 (2014-09-29)
 * Switch to Zenoss 5 writeMetricWithMetadata() API.
 
 ;1.5.2 (2014-09-25)
