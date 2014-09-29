@@ -131,8 +131,9 @@ class PythonCollectionTask(BaseTask):
         else:
             self.plugin = plugin_class()
 
-        # New in 1.6: Support for Zenoss 5's new writeMetric API.
-        self.writeMetric = hasattr(self._dataService, 'writeMetric')
+        # New in 1.6: Support writeMetricWithMetadata().
+        self.writeMetricWithMetadata = hasattr(
+            self._dataService, 'writeMetricWithMetadata')
 
     def doTask(self):
         """Collect a single PythonDataSource."""
@@ -216,18 +217,16 @@ class PythonCollectionTask(BaseTask):
                         }
 
                     for value, timestamp in get_dp_values(dp_value):
-                        if self.writeMetric:
-                            self._dataService.writeMetric(
-                                dp.contextUUID,
+                        if self.writeMetricWithMetadata:
+                            self._dataService.writeMetricWithMetadata(
                                 dp.dpName,
                                 value,
                                 dp.rrdType,
-                                dp.component,
-                                deviceuuid=dp.deviceUUID,
+                                timestamp=timestamp,
                                 min=dp.rrdMin,
                                 max=dp.rrdMax,
                                 threshEventData=threshData,
-                                )
+                                metadata=dp.metadata)
                         else:
                             self._dataService.writeRRD(
                                 dp.rrdPath,
