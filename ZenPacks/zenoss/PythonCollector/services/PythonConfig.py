@@ -105,13 +105,15 @@ class PythonConfig(CollectorConfigService):
                     dp_config.id = dp.id
                     dp_config.dpName = dp.name()
                     dp_config.component = componentId
-                    dp_config.contextUUID = deviceOrComponent.getUUID()
-                    dp_config.deviceUUID = device.getUUID()
                     dp_config.rrdPath = '/'.join((deviceOrComponent.rrdPath(), dp.name()))
                     dp_config.rrdType = dp.rrdtype
                     dp_config.rrdCreateCommand = dp.getRRDCreateCommand(collector)
                     dp_config.rrdMin = dp.rrdmin
                     dp_config.rrdMax = dp.rrdmax
+
+                    # MetricMixin.getMetricMetadata() added in Zenoss 5.
+                    if hasattr(deviceOrComponent, 'getMetricMetadata'):
+                        dp_config.metadata = deviceOrComponent.getMetricMetadata()
 
                     # Attach unknown properties to the dp_config
                     for key in dp.propdict().keys():
