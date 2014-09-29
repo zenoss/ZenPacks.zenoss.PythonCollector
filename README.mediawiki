@@ -250,7 +250,10 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;1.5.1 (2014-09-25)
+;1.5.3 (2014-09-29)
+* Switch to Zenoss 5 writeMetricWithMetadata() API.
+
+;1.5.2 (2014-09-25)
 * Fix bug that causes device corruption on retried model transactions.
 * Add support for Zenoss 5 writeMetric() API.
 
