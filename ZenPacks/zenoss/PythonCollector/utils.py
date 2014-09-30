@@ -11,6 +11,8 @@
 import logging
 log = logging.getLogger('zen.python')
 
+from decimal import Decimal
+
 
 def get_dp_values(input_values):
     """Generate (value, timestamp) tuples suitable for storing.
@@ -20,10 +22,11 @@ def get_dp_values(input_values):
     1. int: 123
     2. float: 123.4
     3. numeric string: '123.4'
-    4. above with 'N' timestamp: (123, 'N')
-    5. above with int timestamp: (123.4, 1404160028)
-    6. above with float timestamp: ('123.4', 1404160028.789839)
-    7. list or tuple of above::
+    4. Decimal: Decimal('123')
+    5. above with 'N' timestamp: (123, 'N')
+    6. above with int timestamp: (123.4, 1404160028)
+    7. above with float timestamp: ('123.4', 1404160028.789839)
+    8. list or tuple of above::
 
         [
             123, 123.4, '123.4',
@@ -31,6 +34,7 @@ def get_dp_values(input_values):
         ]
     """
     is_value = lambda x: isinstance(x, (basestring, float, int, long))
+    is_decimal = lambda x: isinstance(x, Decimal)
     is_timestamp = lambda x: get_dp_ts(x) is not None
     is_value_ts = lambda x: isinstance(x, (list, tuple)) and len(x) == 2 and is_value(x[0]) and is_timestamp(x[1])
     is_value_list = lambda x: isinstance(x, (list, tuple))
@@ -39,11 +43,15 @@ def get_dp_values(input_values):
     if is_value(input_values):
         yield (input_values, 'N')
 
-    # Input types 4-6.
+    # Input type 4
+    elif is_decimal(input_values):
+        yield (str(input_values), 'N')
+
+    # Input types 5-7.
     elif is_value_ts(input_values):
         yield (input_values[0], get_dp_ts(input_values[1]))
 
-    # Input type 7.
+    # Input type 8.
     elif is_value_list(input_values):
         for input_value in input_values:
             for value in get_dp_values(input_value):
