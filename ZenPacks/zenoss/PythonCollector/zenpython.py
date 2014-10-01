@@ -17,6 +17,7 @@ import logging
 log = logging.getLogger('zen.python')
 
 import inspect
+import re
 
 import Globals
 
@@ -71,10 +72,19 @@ class Preferences(object):
     maxTasks = None  # use system default
 
     def buildOptions(self, parser):
-        pass
+        parser.add_option(
+            '--ignore',
+            dest='ignorePlugins', default="",
+            help="Python plugins to ignore. Takes a regular expression")
+        parser.add_option(
+            '--collect',
+            dest='collectPlugins', default="",
+            help="Python plugins to use. Takes a regular expression")
 
     def postStartup(self):
-        pass
+        if self.options.ignorePlugins and self.options.collectPlugins:
+            raise SystemExit("Only one of --ignore or --collect"
+                             " can be used at a time")
 
 
 class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
@@ -90,6 +100,29 @@ class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
         task.
         """
         return subconfig.config_key
+
+    def splitConfiguration(self, configs):
+        tasks = super(PerDataSourceInstanceTaskSplitter, self).splitConfiguration(configs)
+        preferences = zope.component.queryUtility(
+            ICollectorPreferences, 'zenpython')
+
+        def class_name(task):
+            plugin = task.plugin
+            return "%s.%s" % (plugin.__class__.__module__,
+                              plugin.__class__.__name__)
+
+        if preferences.options.collectPlugins:
+            collect = re.compile(preferences.options.collectPlugins).search
+            return dict([(taskName, task) for (taskName, task) in tasks.iteritems()
+                        if collect(class_name(task))])
+
+        elif preferences.options.ignorePlugins:
+            ignore = re.compile(preferences.options.ignorePlugins).search
+            return dict([(taskName, task) for (taskName, task) in tasks.iteritems()
+                        if not ignore(class_name(task))])
+
+        else:
+            return tasks
 
 
 class PythonCollectionTask(BaseTask):
