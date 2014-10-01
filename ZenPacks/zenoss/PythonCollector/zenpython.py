@@ -113,14 +113,10 @@ class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
 
         if preferences.options.collectPlugins:
             collect = re.compile(preferences.options.collectPlugins).search
-            return dict([(taskName, task) for (taskName, task) in tasks.iteritems()
-                        if collect(class_name(task))])
-
+            return {n: t for n, t in tasks.iteritems() if collect(class_name(t))}
         elif preferences.options.ignorePlugins:
             ignore = re.compile(preferences.options.ignorePlugins).search
-            return dict([(taskName, task) for (taskName, task) in tasks.iteritems()
-                        if not ignore(class_name(task))])
-
+            return {n: t for n, t in tasks.iteritems() if not ignore(class_name(t))}
         else:
             return tasks
 
