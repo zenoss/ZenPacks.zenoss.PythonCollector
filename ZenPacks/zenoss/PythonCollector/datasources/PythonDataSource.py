@@ -159,6 +159,32 @@ class PythonDataSourcePlugin(object):
             'maps': [],
             }
 
+    def getService(self, service_name):
+        """
+        Provides access to zenhub services.  It may be used from within a
+        collect method as follows:
+
+            service = yield self.getService('ZenPacks.zenoss.MyZenPack.services.MyService')
+            value = yield service.callRemote('myMethod', someParameter)
+
+        This will invoke the method named remote_myMethod in the
+        ZenPacks.zenoss.MyZenPack.services.MyService.MyService class:
+
+            from Products.ZenHub.HubService import HubService
+            from Products.ZenHub.PBDaemon import translateError
+
+            class MyService(HubService):
+
+                @translateError
+                def remote_myMethod(self, someParameter):
+                    return "My Result for " + someParameter
+
+        Such services will run within zenhub, which gives them access to ZODB.
+
+        Note: this method is provided by zenpython.  Do not override it in
+              subclasses.
+        """
+
     def collect(self, config):
         """No default collect behavior. Must be implemented in subclass."""
         return NotImplementedError

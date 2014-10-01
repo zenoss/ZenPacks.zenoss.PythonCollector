@@ -169,8 +169,8 @@ class PythonCollectionTask(BaseTask):
         # self._collector, which you totally did not see.   Nothing
         # to see here.  Move along.
         @inlineCallbacks
-        def _getServiceFromCollector(class_name):
-            service = yield self._collector.getService(class_name)
+        def _getServiceFromCollector(service_name):
+            service = yield self._collector.getService(service_name)
             returnValue(service)
 
         self.plugin.getService = _getServiceFromCollector
