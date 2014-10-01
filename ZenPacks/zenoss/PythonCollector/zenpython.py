@@ -131,6 +131,17 @@ class PythonCollectionTask(BaseTask):
         else:
             self.plugin = plugin_class()
 
+        # Provide access to getService, without providing access
+        # to other parts of self, or encouraging the use of
+        # self._collector, which you totally did not see.   Nothing
+        # to see here.  Move along.
+        @inlineCallbacks
+        def _getServiceFromCollector(class_name):
+            service = yield self._collector.getService(class_name)
+            returnValue(service)
+
+        self.plugin.getService = _getServiceFromCollector
+
         # New in 1.6: Support writeMetricWithMetadata().
         self.writeMetricWithMetadata = hasattr(
             self._dataService, 'writeMetricWithMetadata')
