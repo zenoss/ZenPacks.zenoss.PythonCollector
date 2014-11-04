@@ -61,7 +61,11 @@ def _updateRelationship(self, device, relmap):
     if obj:
         return self._updateObject(obj, objmap)
 
-    return self._createRelObject(device, objmap, relname)[0]
+    self._createRelObject(device, objmap, relname)[0]
+
+    # If we get here it means we created a new object. So we must return
+    # true so the caller knows that a change in the model has occured.
+    return True
 
 
 @monkeypatch('Products.DataCollector.ApplyDataMap.ApplyDataMap')

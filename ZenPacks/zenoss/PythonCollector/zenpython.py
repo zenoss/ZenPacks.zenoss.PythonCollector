@@ -17,6 +17,7 @@ import logging
 log = logging.getLogger('zen.python')
 
 import inspect
+import re
 
 import Globals
 
@@ -71,10 +72,19 @@ class Preferences(object):
     maxTasks = None  # use system default
 
     def buildOptions(self, parser):
-        pass
+        parser.add_option(
+            '--ignore',
+            dest='ignorePlugins', default="",
+            help="Python plugins to ignore. Takes a regular expression")
+        parser.add_option(
+            '--collect',
+            dest='collectPlugins', default="",
+            help="Python plugins to use. Takes a regular expression")
 
     def postStartup(self):
-        pass
+        if self.options.ignorePlugins and self.options.collectPlugins:
+            raise SystemExit("Only one of --ignore or --collect"
+                             " can be used at a time")
 
 
 class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
@@ -90,6 +100,25 @@ class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
         task.
         """
         return subconfig.config_key
+
+    def splitConfiguration(self, configs):
+        tasks = super(PerDataSourceInstanceTaskSplitter, self).splitConfiguration(configs)
+        preferences = zope.component.queryUtility(
+            ICollectorPreferences, 'zenpython')
+
+        def class_name(task):
+            plugin = task.plugin
+            return "%s.%s" % (plugin.__class__.__module__,
+                              plugin.__class__.__name__)
+
+        if preferences.options.collectPlugins:
+            collect = re.compile(preferences.options.collectPlugins).search
+            return {n: t for n, t in tasks.iteritems() if collect(class_name(t))}
+        elif preferences.options.ignorePlugins:
+            ignore = re.compile(preferences.options.ignorePlugins).search
+            return {n: t for n, t in tasks.iteritems() if not ignore(class_name(t))}
+        else:
+            return tasks
 
 
 class PythonCollectionTask(BaseTask):
@@ -130,6 +159,17 @@ class PythonCollectionTask(BaseTask):
             self.plugin = plugin_class(config=self.config)
         else:
             self.plugin = plugin_class()
+
+        # Provide access to getService, without providing access
+        # to other parts of self, or encouraging the use of
+        # self._collector, which you totally did not see.   Nothing
+        # to see here.  Move along.
+        @inlineCallbacks
+        def _getServiceFromCollector(service_name):
+            service = yield self._collector.getService(service_name)
+            returnValue(service)
+
+        self.plugin.getService = _getServiceFromCollector
 
         # New in 1.6: Support writeMetricWithMetadata().
         self.writeMetricWithMetadata = hasattr(
