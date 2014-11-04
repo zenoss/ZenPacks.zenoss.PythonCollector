@@ -250,7 +250,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;Next
+;1.6.0 (2014-11-04)
 * Provide PythonDataSourcePlugin instances access to hub services.
 * Add --ignore and --collect options for zenpython.
 * Handle Decimal performance values.
