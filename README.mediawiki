@@ -254,6 +254,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 * Provide PythonDataSourcePlugin instances access to hub services.
 * Add --ignore and --collect options for zenpython.
 * Handle Decimal performance values.
+* Fix indexing bug when adding components with only an "id" property.
 
 ;1.5.3 (2014-09-29)
 * Switch to Zenoss 5 writeMetricWithMetadata() API.
