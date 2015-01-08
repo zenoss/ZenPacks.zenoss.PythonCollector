@@ -48,7 +48,7 @@
                "PortNumber": 8444,
                "Protocol": "tcp",
                "Purpose": "import"
-           }
+           },
            {
                "Name": "rabbitmq",
                "Application": "rabbitmq.*",
