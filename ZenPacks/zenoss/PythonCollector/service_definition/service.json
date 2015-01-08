@@ -1,5 +1,5 @@
 {
-   "servicePath": "/",
+   "servicePath": "/hub/collector"
    "ServiceDefinition": {
        "Description": "Custom: Adds a \"Python\" data source type. Adds RabbitMQ imports",
        "Actions": {
