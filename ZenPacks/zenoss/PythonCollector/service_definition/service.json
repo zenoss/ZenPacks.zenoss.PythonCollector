@@ -1,6 +1,6 @@
 {
    "servicePath": "/hub/collector",
-   "ServiceDefinition": {
+   "serviceDefinition": {
        "Description": "Adds a \"zenpython\" data source type for PythonCollector",
        "Actions": {
            "debug": "su - zenoss -c '${ZENHOME:-/opt/zenoss}/bin/{{.Name}} debug'",
@@ -57,7 +57,7 @@
                "Purpose": "import"
            }
        ],
-       "ImageID": "zenoss/zenoss5x",
+       "ImageID": "",
        "Instances": {
            "min": 1
        },
