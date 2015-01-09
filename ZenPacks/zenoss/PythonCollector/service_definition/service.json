@@ -1,5 +1,5 @@
 {
-   "servicePath": "/hub/collector"
+   "servicePath": "/hub/collector",
    "ServiceDefinition": {
        "Description": "Adds a \"zenpython\" data source type for PythonCollector",
        "Actions": {
