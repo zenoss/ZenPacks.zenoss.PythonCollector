@@ -1,7 +1,7 @@
 {
    "servicePath": "/hub/collector"
    "ServiceDefinition": {
-       "Description": "Custom: Adds a \"Python\" data source type. Adds RabbitMQ imports",
+       "Description": "Adds a \"zenpython\" data source type for PythonCollector",
        "Actions": {
            "debug": "su - zenoss -c '${ZENHOME:-/opt/zenoss}/bin/{{.Name}} debug'",
            "stats": "su - zenoss -c '${ZENHOME:-/opt/zenoss}/bin/{{.Name}} stats'"
