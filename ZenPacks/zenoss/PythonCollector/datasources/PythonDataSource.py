@@ -9,6 +9,7 @@
 
 from collections import defaultdict
 
+from Acquisition import aq_base
 from zope.component import adapts
 from zope.interface import implements
 
@@ -64,6 +65,17 @@ class PythonDataSource(ZenPackPersistence, RRDDataSource):
 
         return talesEvalStr(str(text), context, extra=extra)
 
+    def getPluginClass(self):
+        """Return plugin class referred to by self.plugin_classname."""
+        plugin_class = getattr(aq_base(self), '_v_pluginClass', None)
+        if not plugin_class:
+            from ZenPacks.zenoss.PythonCollector.services.PythonConfig \
+                import load_plugin_class
+
+            self._v_pluginClass = load_plugin_class(self.plugin_classname)
+
+        return self._v_pluginClass
+
     def getCycleTime(self, context):
         return int(self.talesEval(self.cycletime, context))
 
@@ -72,22 +84,14 @@ class PythonDataSource(ZenPackPersistence, RRDDataSource):
         if not self.plugin_classname:
             return [context.id]
 
-        from ZenPacks.zenoss.PythonCollector.services.PythonConfig \
-            import load_plugin_class
-
-        plugin_class = load_plugin_class(self.plugin_classname)
-        return plugin_class.config_key(self, context)
+        return self.getPluginClass().config_key(self, context)
 
     def getParams(self, context):
         """Returns extra parameters needed for collecting this datasource."""
         if not self.plugin_classname:
             return {}
 
-        from ZenPacks.zenoss.PythonCollector.services.PythonConfig \
-            import load_plugin_class
-
-        plugin_class = load_plugin_class(self.plugin_classname)
-        return plugin_class.params(self, context)
+        return self.getPluginClass().params(self, context)
 
 
 class IPythonDataSourceInfo(IRRDDataSourceInfo):
