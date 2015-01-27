@@ -250,7 +250,11 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;1.6.1 (2015-01-213)
+;1.6.2 (2015-01-27)
+* Optimize datasource plugin loading. (ZEN-16344)
+* Use epoll reactor to support >1024 descriptors. (ZEN-16164)
+
+;1.6.1 (2015-01-13)
 * Add container Support for Zenoss 5X (Europa) services including RabbitMQ.
 
 ;1.6.0 (2014-11-04)

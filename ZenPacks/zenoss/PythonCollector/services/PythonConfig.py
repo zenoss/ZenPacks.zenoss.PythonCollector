@@ -100,6 +100,18 @@ class PythonConfig(CollectorConfigService):
             for ds in datasources:
                 datapoints = []
 
+                try:
+                    ds_plugin_class = ds.getPluginClass()
+                except Exception as e:
+                    log.error(
+                        "Failed to load plugin %r for %s/%s: %s",
+                        ds.plugin_classname,
+                        template.id,
+                        ds.titleOrId(),
+                        e)
+
+                    continue
+
                 for dp in ds.datapoints():
                     dp_config = DataPointConfig()
                     dp_config.id = dp.id
@@ -159,8 +171,7 @@ class PythonConfig(CollectorConfigService):
                 ds_config.points = datapoints
 
                 # Populate attributes requested by plugin.
-                plugin_class = load_plugin_class(ds.plugin_classname)
-                for attr in plugin_class.proxy_attributes:
+                for attr in ds_plugin_class.proxy_attributes:
                     value = getattr(deviceOrComponent, attr, None)
                     if callable(value):
                         value = value()
