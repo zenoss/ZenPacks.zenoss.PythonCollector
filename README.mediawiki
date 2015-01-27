@@ -250,7 +250,10 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;1.6.1 (2015-01-213)
+;1.6.2
+* Optimize datasource plugin loading. (ZEN-16344)
+
+;1.6.1 (2015-01-13)
 * Add container Support for Zenoss 5X (Europa) services including RabbitMQ.
 
 ;1.6.0 (2014-11-04)
