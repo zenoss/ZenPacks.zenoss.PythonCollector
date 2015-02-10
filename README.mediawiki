@@ -250,6 +250,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
+;1.6.3 (2015-02-10)
+* Revert to select reactor. Some plugins require it. (ZEN-16542)
+
 ;1.6.2 (2015-01-27)
 * Optimize datasource plugin loading. (ZEN-16344)
 * Use epoll reactor to support >1024 descriptors. (ZEN-16164)
