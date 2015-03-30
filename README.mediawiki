@@ -250,6 +250,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
+;1.6.4 (2015-03-30)
+* Fix serviced datapoint format syntax. (ZEN-17255)
+
 ;1.6.3 (2015-02-10)
 * Revert to select reactor. Some plugins require it. (ZEN-16542)
 
