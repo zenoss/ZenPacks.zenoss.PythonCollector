@@ -28,6 +28,7 @@ from twisted.spread import pb
 import zope.interface
 
 from Products.ZenCollector.daemon import CollectorDaemon
+from Products.ZenHub.PBDaemon import HubDown
 
 from Products.ZenCollector.interfaces import (
     ICollector,
@@ -294,6 +295,10 @@ class PythonCollectionTask(BaseTask):
         try:
             changed = yield remoteProxy.callRemote(
                 'applyDataMaps', self.configId, maps)
+        except (pb.PBConnectionLost, HubDown), e:
+            log.error("Connection was closed by remote, "
+                "please check zenhub health. "
+                "%s lost %s datamaps", self.name, len(maps))
         except Exception, e:
             log.exception("%s lost %s datamaps", self.name, len(maps))
         else:
