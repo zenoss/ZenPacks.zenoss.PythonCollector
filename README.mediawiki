@@ -248,6 +248,11 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
     pass
 </syntaxhighlight>
 
+== Zenpython options ==
+
+ ;twistedthreadpoolsize
+ * Controls size of threads pool. Default value is '10'. Datasources can use multithreading to run multiple requests in parallel. Increasing this value may boost performance for the cost of system memory used.
+
 == Changes ==
 
 ;1.6.4 (2015-03-30)
