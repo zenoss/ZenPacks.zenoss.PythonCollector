@@ -81,6 +81,12 @@ class Preferences(object):
             '--collect',
             dest='collectPlugins', default="",
             help="Python plugins to use. Takes a regular expression")
+        parser.add_option(
+            '--twistedthreadpoolsize',
+            dest='threadPoolSize',
+            type='int',
+            default=10,
+            help="Suggested size for twisted reactor threads pool. Takes an integer")
 
     def postStartup(self):
         if self.options.ignorePlugins and self.options.collectPlugins:
@@ -316,6 +322,8 @@ def main():
     task_factory = SimpleTaskFactory(PythonCollectionTask)
     task_splitter = PerDataSourceInstanceTaskSplitter(task_factory)
     daemon = CollectorDaemon(preferences, task_splitter)
+    pool_size = preferences.options.threadPoolSize
+    reactor.suggestThreadPoolSize(pool_size)
     daemon.run()
 
 
