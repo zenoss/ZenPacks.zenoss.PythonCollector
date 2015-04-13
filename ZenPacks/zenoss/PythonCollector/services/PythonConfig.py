@@ -158,7 +158,21 @@ class PythonConfig(CollectorConfigService):
                 ds_config = PythonDataSourceConfig()
                 ds_config.device = deviceId
                 ds_config.manageIp = deviceOrComponent.getManageIp()
-                ds_config.component = componentId
+
+                if isinstance(ds.component,basestring) and '$' in ds.component:
+                        extra = {
+                                    'device': device,
+                                    'dev': device,
+                                    'devname': device.id,
+                                    'datasource': ds,
+                                    'ds': ds,
+                                    'datapoint': dp,
+                                    'dp': dp,
+                        }
+                        ds_config.component = talesEvalStr(ds.component,deviceOrComponent,extra=extra)
+                else:
+                        ds_config.component = componentId
+
                 ds_config.plugin_classname = ds.plugin_classname
                 ds_config.template = template.id
                 ds_config.datasource = ds.titleOrId()
