@@ -353,25 +353,6 @@ class ZenPythonDaemon(CollectorDaemon):
         # if needed
         zope.component.provideUtility(self, IDataMapService)
 
-    '''
-    def run(self):
-        self.rrdStats.config(self.options.monitor, self.name, [])
-        self.log.debug('Starting PBDaemon initialization')
-        d = self.connect()
-        def callback(result):
-            self.sendEvent(self.startEvent)
-            self.pushEventsLoop()
-            self.log.debug('Calling connected.')
-            self.connected()
-            return result
-        d.addCallback(callback)
-        d.addErrback(twisted.python.log.err)
-        reactor.run()
-        if self._customexitcode:
-            sys.exit(self._customexitcode)
-    '''
-
-
     def run(self):
         def callback(result):
             self.sendEvent(self.startEvent)
