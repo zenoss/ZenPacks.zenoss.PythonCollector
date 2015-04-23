@@ -29,6 +29,7 @@ known_point_properties = (
 
 class PythonDataSourceConfig(pb.Copyable, pb.RemoteCopy):
     device = None
+    deviceClass = None
     manageIp = None
     component = None
     template = None
@@ -63,6 +64,7 @@ class PythonConfig(CollectorConfigService):
         collector = device.getPerformanceServer()
 
         proxy = CollectorConfigService._createDeviceProxy(self, device)
+        proxy.deviceClass = device.getDeviceClassPath()
         proxy.datasources = list(self.device_datasources(device, collector))
 
         # getTresholdInstances needs the datasource sourcetype string.

@@ -18,10 +18,11 @@ log = logging.getLogger('zen.python')
 
 import inspect
 import re
-
+import time
 import Globals
 
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
+import twisted.python.log
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.spread import pb
 
@@ -50,6 +51,10 @@ from Products.ZenUtils.Utils import unused
 
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
+from ZenPacks.zenoss.PythonCollector.interfaces import IDataMapService
+from ZenPacks.zenoss.PythonCollector.datamap import DataMapQueueManager
+from Products.ZenCollector.daemon import DUMMY_LISTENER
+from functools import partial
 
 unused(Globals)
 
@@ -87,6 +92,24 @@ class Preferences(object):
             type='int',
             default=10,
             help="Suggested size for twisted reactor threads pool. Takes an integer")
+        parser.add_option('--datamapflushseconds',
+                           dest='datamapflushseconds',
+                           default=5.,
+                           type='float',
+                           help='Seconds between attempts to flush '
+                           'datamaps to ZenHub.')
+
+        parser.add_option('--datamapflushchunksize',
+                           dest='datamapflushchunksize',
+                           default=50,
+                           type='int',
+                           help='Number of datamaps to send to ZenHub'
+                           'at one time')
+        parser.add_option('--maxdatamapqueuelen',
+                           dest='maxdatamapqueuelen',
+                           default=5000,
+                           type='int',
+                           help='Maximum number of datamaps to queue')
 
     def postStartup(self):
         if self.options.ignorePlugins and self.options.collectPlugins:
@@ -152,6 +175,7 @@ class PythonCollectionTask(BaseTask):
         self._collector = zope.component.queryUtility(ICollector)
         self._dataService = zope.component.queryUtility(IDataService)
         self._eventService = zope.component.queryUtility(IEventService)
+        self._datamapService = zope.component.queryUtility(IDataMapService)
         self._preferences = zope.component.queryUtility(
             ICollectorPreferences, 'zenpython')
 
@@ -287,45 +311,201 @@ class PythonCollectionTask(BaseTask):
                                 timestamp=timestamp,
                                 **WRITERRD_ARGS)
 
-    @inlineCallbacks
     def applyMaps(self, maps):
         if not maps:
-            returnValue(None)
+            return None
 
         self.state = PythonCollectionTask.STATE_APPLY_MAPS
 
-        remoteProxy = self._collector.getRemoteConfigServiceProxy()
-
         log.debug("%s sending %s datamaps", self.name, len(maps))
 
-        try:
-            changed = yield remoteProxy.callRemote(
-                'applyDataMaps', self.configId, maps)
-        except (pb.PBConnectionLost, HubDown), e:
-            log.error("Connection was closed by remote, "
-                "please check zenhub health. "
-                "%s lost %s datamaps", self.name, len(maps))
-        except Exception, e:
-            log.exception("%s lost %s datamaps", self.name, len(maps))
-        else:
-            if changed:
-                log.debug("%s changes applied", self.name)
-            else:
-                log.debug("%s no changes applied", self.name)
+        # On CTRL-C or exit the reactor might stop before we get to this
+        # call and generate a traceback.
+        if reactor.running:
+            self._datamapService.applyDataMaps(self.configId, self.config.deviceClass, maps)
 
     def handleError(self, result):
         log.error('%s unhandled plugin error: %s', self.name, result)
 
 
+class ZenPythonDaemon(CollectorDaemon):
+    zope.interface.implements(IDataMapService)
+
+    def __init__(self, preferences, taskSplitter,
+                 configurationListener=DUMMY_LISTENER,
+                 initializationCallback=None,
+                 stoppingCallback=None):
+        self.initialServices += ['ZenPacks.zenoss.PythonCollector.services.DataMapService']
+        super(ZenPythonDaemon, self).__init__(preferences, taskSplitter,
+                                                   configurationListener,
+                                                   initializationCallback,
+                                                   stoppingCallback)
+        self.DataMapServicestopped = False
+        # Add a shutdown trigger to send a stop event and flush the datamap queue
+        reactor.addSystemEventTrigger('before', 'shutdown', self._stopPbDaemonDataMapService)
+
+        self.dataMapQueueManager = DataMapQueueManager(self.options, self.log)
+        self.datamap_lastStats = 0
+
+        self._pushDataMapsDeferred = None
+        # register the various interfaces we provide the rest of the system so
+        # that collector implementors can easily retrieve a reference back here
+        # if needed
+        zope.component.provideUtility(self, IDataMapService)
+
+    '''
+    def run(self):
+        self.rrdStats.config(self.options.monitor, self.name, [])
+        self.log.debug('Starting PBDaemon initialization')
+        d = self.connect()
+        def callback(result):
+            self.sendEvent(self.startEvent)
+            self.pushEventsLoop()
+            self.log.debug('Calling connected.')
+            self.connected()
+            return result
+        d.addCallback(callback)
+        d.addErrback(twisted.python.log.err)
+        reactor.run()
+        if self._customexitcode:
+            sys.exit(self._customexitcode)
+    '''
+
+
+    def run(self):
+        def callback(result):
+            self.sendEvent(self.startEvent)
+            self.pushEventsLoop()
+            self.pushDataMapLoop()
+            self.log.debug('Calling connected.')
+            self.connected()
+            return result
+
+        try:
+            # Zenoss 5 support
+            threshold_notifier = self._getThresholdNotifier()
+            self.rrdStats.config(self.name,
+                                 self.options.monitor,
+                                 self.metricWriter(),
+                                 threshold_notifier,
+                                 self.derivativeTracker())
+        except AttributeError:
+            self.rrdStats.config(self.options.monitor, self.name, [])
+
+        self.log.debug('Starting PBDaemon initialization')
+        d = self.connect()
+        d.addCallback(callback)
+        d.addErrback(twisted.python.log.err)
+        reactor.run()
+        if self._customexitcode:
+            sys.exit(self._customexitcode)
+
+        reactor.run()
+        if self._customexitcode:
+            sys.exit(self._customexitcode)
+
+    @defer.inlineCallbacks
+    def pushDataMapLoop(self):
+        """Periodically, wake up and flush datamaps to ZenHub."""
+        reactor.callLater(self.options.datamapflushseconds, self.pushDataMapLoop)
+        self.log.debug('Pushing DataMaps')
+        yield self.pushDatamaps()
+
+        # Record the number of datamaps in the queue up to every 2 seconds.
+        now = time.time()
+        if self.rrdStats.name and now >= (self.datamap_lastStats + 2):
+            self.datamap_lastStats = now
+            try:
+                events = self.rrdStats.gauge(
+                    'datamapQueueLength', self.dataMapQueueManager.datamap_queue_length)
+            except TypeError:
+                events = self.rrdStats.gauge(
+                    'datamapQueueLength', 300, self.dataMapQueueManager.datamap_queue_length)
+
+            for event in events:
+                self.eventQueueManager.addPerformanceEvent(event)
+
+    @defer.inlineCallbacks
+    def pushDatamaps(self):
+        """Flush datamaps to ZenHub.
+        """
+        # are we already shutting down?
+        if not reactor.running:
+            self.log.debug("Skipping datamap sending - reactor not running.")
+            return
+        if self._pushDataMapsDeferred:
+            self.log.debug("Skipping datamap sending - previous call active.")
+            return
+        try:
+            self._pushDataMapsDeferred = defer.Deferred()
+
+            # are still connected to ZenHub?
+            datamapSvc = self.services.get('ZenPacks.zenoss.PythonCollector.services.DataMapService', None)
+            if not datamapSvc:
+                self.log.error("No datamap service: %r", datamapSvc)
+                return
+
+            discarded_datamaps = self.dataMapQueueManager.discarded_datamaps
+            if discarded_datamaps:
+                self.log.error(
+                    'Discarded olded %d datamaps because maxdatamapqueuelen was '
+                    'exceeded: %d/%d',
+                    discarded_datamaps,
+                    discarded_datamaps + self.options.maxdatamapqueuelen,
+                    self.options.maxdatamapqueuelen)
+                self.counters['discardedDataMaps'] += discarded_datamaps
+            self.dataMapQueueManager.discarded_datamaps = 0
+
+            send_datamap_fn = partial(datamapSvc.callRemote, 'applyDataMaps')
+            try:
+                yield self.dataMapQueueManager.applyDataMaps(send_datamap_fn)
+            except (PBConnectionLost, ConnectionLost) as ex:
+                self.log.error('Error sending datamap: %s', ex)
+        except Exception as ex:
+            self.log.exception(ex)
+        finally:
+            d, self._pushDataMapsDeferred = self._pushDataMapsDeferred, None
+            d.callback('datamaps sent')
+
+    def applyDataMaps(self, device, deviceClass, datamaps, **kw):
+        """ Add datamaps to queue of maps to be sent.  If we have an map
+            service then process the queue.
+        """
+        generatedDataMaps = self.generateDataMaps(datamaps, **kw)
+        self.dataMapQueueManager.addDataMaps(device, deviceClass, generatedDataMaps)
+        self.counters['dataMapCount'] += len(generatedDataMaps)
+
+    def generateDataMaps(self, datamaps, **kw):
+        """ Add datamaps to queue of maps to be sent.  If we have an datamap
+        service then process the queue.
+        """
+        if not reactor.running:
+            return
+        return datamaps
+
+    def _stopPbDaemonDataMapService(self):
+        if self.DataMapServicestopped:
+            return
+        self.DataMapServicestopped = True
+
+        if 'ZenPacks.zenoss.PythonCollector.services.DataMapService' in self.services:
+            self.log.debug("Shutting down DataMap Service")
+            if self._pushDataMapsDeferred:
+                self.log.debug("Currently sending datamaps. Queueing next call")
+                d = self._pushDataMapsDeferred
+                # Schedule another call to flush any additional datamaps
+                d.addBoth(lambda unused: self.pushDataMaps())
+            else:
+                d = self.pushDatamaps()
+
 def main():
     preferences = Preferences()
     task_factory = SimpleTaskFactory(PythonCollectionTask)
     task_splitter = PerDataSourceInstanceTaskSplitter(task_factory)
-    daemon = CollectorDaemon(preferences, task_splitter)
+    daemon = ZenPythonDaemon(preferences, task_splitter)
     pool_size = preferences.options.threadPoolSize
     reactor.suggestThreadPoolSize(pool_size)
     daemon.run()
-
 
 if __name__ == '__main__':
     main()
