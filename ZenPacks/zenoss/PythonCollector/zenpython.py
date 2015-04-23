@@ -381,10 +381,6 @@ class ZenPythonDaemon(CollectorDaemon):
         if self._customexitcode:
             sys.exit(self._customexitcode)
 
-        reactor.run()
-        if self._customexitcode:
-            sys.exit(self._customexitcode)
-
     @defer.inlineCallbacks
     def pushDataMapLoop(self):
         """Periodically, wake up and flush datamaps to ZenHub."""
