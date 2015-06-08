@@ -1,39 +1,12 @@
 <?xml version="1.0"?>
 <objects>
-<!-- ('', 'zport', 'dmd', 'Processes') -->
-<object id='/zport/dmd/Processes' module='Products.ZenModel.OSProcessOrganizer' class='OSProcessOrganizer'>
-<property visible="True" type="boolean" id="zCountProcs" >
-False
-</property>
-<property visible="True" type="boolean" id="zAlertOnRestart" >
-False
-</property>
-<property visible="True" type="boolean" id="zMonitor" >
-True
-</property>
-<property visible="True" type="int" id="zFailSeverity" >
-4
-</property>
-<property visible="True" type="int" id="zModelerLock" >
-0
-</property>
-<property visible="True" type="boolean" id="zSendEventWhenBlockedFlag" >
-False
-</property>
-<object id='Zenoss' module='Products.ZenModel.OSProcessOrganizer' class='OSProcessOrganizer'>
-<tomanycont id='osProcessClasses'>
-<object id='zenpython' module='Products.ZenModel.OSProcessClass' class='OSProcessClass'>
-<property id='zendoc' type='string'>
-Collecting Python data sources by providing a new Python data source type. The new data source type can be used either through the creation of Python data sources through the web interface or in a ZenPack. The 'Python' data source type circumvents the need to spawn subprocesses by forcing the collection code to be asynchronous using the Twisted library.
-</property>
+<!-- ('', 'zport', 'dmd', 'Processes', 'Zenoss', 'osProcessClasses', 'zenpython') -->
+<object id='/zport/dmd/Processes/Zenoss/osProcessClasses/zenpython' module='Products.ZenModel.OSProcessClass' class='OSProcessClass'>
 <property type="string" id="name" mode="w" >
 zenpython
 </property>
 <property type="string" id="regex" mode="w" >
-.*zenpython.py.*--daemon.*
-</property>
-<property type="string" id="excludeRegex" mode="w" >
-\b(vim|tail|grep|tar|cat|bash)\b
+zenpython
 </property>
 <property type="boolean" id="ignoreParametersWhenModeling" mode="w" >
 False
@@ -41,14 +14,8 @@ False
 <property type="boolean" id="ignoreParameters" mode="w" >
 False
 </property>
-<property type="text" id="description" mode="w" >
-Collecting Python data sources by providing a new Python data source type. The new data source type can be used either through the creation of Python data sources through the web interface or in a ZenPack. The 'Python' data source type circumvents the need to spawn subprocesses by forcing the collection code to be asynchronous using the Twisted library.
-</property>
 <property type="int" id="sequence" mode="w" >
 0
 </property>
-</object>
-</tomanycont>
-</object>
 </object>
 </objects>
