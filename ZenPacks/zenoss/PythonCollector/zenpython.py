@@ -28,6 +28,7 @@ from twisted.spread import pb
 import zope.interface
 
 from Products.ZenCollector.daemon import CollectorDaemon
+from Products.ZenHub.PBDaemon import HubDown
 
 from Products.ZenCollector.interfaces import (
     ICollector,
@@ -80,6 +81,12 @@ class Preferences(object):
             '--collect',
             dest='collectPlugins', default="",
             help="Python plugins to use. Takes a regular expression")
+        parser.add_option(
+            '--twistedthreadpoolsize',
+            dest='threadPoolSize',
+            type='int',
+            default=10,
+            help="Suggested size for twisted reactor threads pool. Takes an integer")
 
     def postStartup(self):
         if self.options.ignorePlugins and self.options.collectPlugins:
@@ -174,6 +181,9 @@ class PythonCollectionTask(BaseTask):
         # New in 1.6: Support writeMetricWithMetadata().
         self.writeMetricWithMetadata = hasattr(
             self._dataService, 'writeMetricWithMetadata')
+
+        # New in 1.7: Use startDelay from the plugin.
+        self.startDelay = getattr(self.plugin, 'startDelay', None)
 
     def doTask(self):
         """Collect a single PythonDataSource."""
@@ -294,6 +304,10 @@ class PythonCollectionTask(BaseTask):
         try:
             changed = yield remoteProxy.callRemote(
                 'applyDataMaps', self.configId, maps)
+        except (pb.PBConnectionLost, HubDown), e:
+            log.error("Connection was closed by remote, "
+                "please check zenhub health. "
+                "%s lost %s datamaps", self.name, len(maps))
         except Exception, e:
             log.exception("%s lost %s datamaps", self.name, len(maps))
         else:
@@ -311,6 +325,8 @@ def main():
     task_factory = SimpleTaskFactory(PythonCollectionTask)
     task_splitter = PerDataSourceInstanceTaskSplitter(task_factory)
     daemon = CollectorDaemon(preferences, task_splitter)
+    pool_size = preferences.options.threadPoolSize
+    reactor.suggestThreadPoolSize(pool_size)
     daemon.run()
 
 

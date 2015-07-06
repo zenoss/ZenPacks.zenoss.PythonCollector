@@ -1,3 +1,21 @@
 <?xml version="1.0"?>
 <objects>
+<!-- ('', 'zport', 'dmd', 'Processes', 'Zenoss', 'osProcessClasses', 'zenpython') -->
+<object id='/zport/dmd/Processes/Zenoss/osProcessClasses/zenpython' module='Products.ZenModel.OSProcessClass' class='OSProcessClass'>
+<property type="string" id="name" mode="w" >
+zenpython
+</property>
+<property type="string" id="regex" mode="w" >
+zenpython
+</property>
+<property type="boolean" id="ignoreParametersWhenModeling" mode="w" >
+False
+</property>
+<property type="boolean" id="ignoreParameters" mode="w" >
+False
+</property>
+<property type="int" id="sequence" mode="w" >
+0
+</property>
+</object>
 </objects>
