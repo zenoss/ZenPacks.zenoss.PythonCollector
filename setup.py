@@ -3,7 +3,7 @@
 # or saved.  Do not modify them directly here.
 # NB: PACKAGES is deprecated
 NAME = "ZenPacks.zenoss.PythonCollector"
-VERSION = "1.7.0"
+VERSION = "1.8.0dev"
 AUTHOR = "Zenoss"
 LICENSE = "All Rights Reserved"
 NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']
