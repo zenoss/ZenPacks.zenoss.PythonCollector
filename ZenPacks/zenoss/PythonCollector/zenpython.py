@@ -182,6 +182,9 @@ class PythonCollectionTask(BaseTask):
         self.writeMetricWithMetadata = hasattr(
             self._dataService, 'writeMetricWithMetadata')
 
+        # New in 1.7: Use startDelay from the plugin.
+        self.startDelay = getattr(self.plugin, 'startDelay', None)
+
     def doTask(self):
         """Collect a single PythonDataSource."""
         d = self.plugin.collect(self.config)
