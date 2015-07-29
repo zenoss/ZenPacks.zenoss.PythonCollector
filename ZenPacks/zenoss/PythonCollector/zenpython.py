@@ -21,8 +21,8 @@ import re
 
 import Globals
 
-from twisted.internet import reactor
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet import reactor, task
+from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
 from twisted.spread import pb
 
 import zope.interface
@@ -199,18 +199,19 @@ class PythonCollectionTask(BaseTask):
     def cleanup(self):
         return self.plugin.cleanup(self.config)
 
+    @inlineCallbacks
     def processResults(self, result):
         if not result:
             # New in 1.3. Now safe to return no results.
-            return
+            returnValue(None)
 
         # New in 1.3. It's OK to not set results events key.
         if 'events' in result:
-            self.sendEvents(result['events'])
+            yield self.sendEvents(result['events'])
 
         # New in 1.3. It's OK to not set results values key.
         if 'values' in result:
-            self.storeValues(result['values'])
+            yield self.storeValues(result['values'])
 
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
@@ -219,8 +220,9 @@ class PythonCollectionTask(BaseTask):
             # We should only block the task on applying datamaps when
             # not cycling.
             if d and not self.cycling:
-                return d
+                yield d
 
+    @inlineCallbacks
     def sendEvents(self, events):
         if not events:
             return
@@ -231,15 +233,18 @@ class PythonCollectionTask(BaseTask):
             return
 
         # Default event fields.
-        for event in events:
+        for i, event in enumerate(events):
             event.setdefault('device', self.configId)
             event.setdefault('severity', ZenEventClasses.Info)
+            # On CTRL-C or exit the reactor might stop before we get to this
+            # call and generate a traceback.
+            if reactor.running:
+                #do in chunks of 100 to give time to reactor
+                self._eventService.sendEvent(event)
+                if i % 100:
+                    yield task.deferLater(reactor, 0, lambda: None)
 
-        # On CTRL-C or exit the reactor might stop before we get to this
-        # call and generate a traceback.
-        if reactor.running:
-            self._eventService.sendEvents(events)
-
+    @inlineCallbacks
     def storeValues(self, values):
         if not values:
             return
@@ -268,7 +273,7 @@ class PythonCollectionTask(BaseTask):
 
                     for value, timestamp in get_dp_values(dp_value):
                         if self.writeMetricWithMetadata:
-                            self._dataService.writeMetricWithMetadata(
+                            yield maybeDeferred(self._dataService.writeMetricWithMetadata,
                                 dp.dpName,
                                 value,
                                 dp.rrdType,
@@ -277,6 +282,7 @@ class PythonCollectionTask(BaseTask):
                                 max=dp.rrdMax,
                                 threshEventData=threshData,
                                 metadata=dp.metadata)
+
                         else:
                             self._dataService.writeRRD(
                                 dp.rrdPath,
