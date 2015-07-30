@@ -257,6 +257,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 ;1.7.1 (2015-07-30)
 * Avoid a tight loop when writing metrics and events. (ZEN-18956)
+* Switch back to epoll reactor. No select-dependent plugins left.
 
 ;1.7.0 (2015-07-06)
 * Fix datapoint format for Control Center metrics.

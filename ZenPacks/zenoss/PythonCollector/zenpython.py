@@ -21,6 +21,20 @@ import re
 
 import Globals
 
+
+if __name__ == "__main__":
+    # Install the best reactor available if run as a script. This must
+    # be done early before other imports have a chance to install a
+    # different reactor.
+    try:
+        from Products.ZenHub import installReactor
+    except ImportError:
+        # Zenoss 4.1 doesn't have ZenHub.installReactor.
+        pass
+    else:
+        installReactor()
+
+
 from twisted.internet import reactor, task
 from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
 from twisted.spread import pb
