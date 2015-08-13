@@ -104,25 +104,32 @@
                    "Description": "zenpython internal metrics",
                    "Metrics": [
                        {
-                           "ID": "dataPoints",
-                           "Name": "Datapoints",
-                           "Description": "Number of datapoints collected.",
-                           "Counter": true,
-                           "Unit": "Points"
-                       },
-                       {
                            "ID": "devices",
                            "Name": "Devices",
-                           "Description": "Number of devices.",
+                           "Description": "Number of devices being collected.",
                            "Counter": false,
                            "Unit": "Count"
                        },
                        {
+                           "ID": "dataPoints",
+                           "Name": "Datapoints",
+                           "Description": "Number of datapoints collected per second.",
+                           "Counter": true,
+                           "Unit": "Datapoints/sec"
+                       },
+                       {
                            "ID": "eventCount",
                            "Name": "Event Count",
-                           "Description": "Total number of events.",
+                           "Description": "Number of events sent per second.",
                            "Counter": true,
-                           "Unit": "Events"
+                           "Unit": "Events/sec"
+                       },
+                       {
+                           "ID": "discardedEvents",
+                           "Name": "Discarded Events",
+                           "Description": "Number of events discarded per second.",
+                           "Counter": true,
+                           "Unit": "Events/sec"
                        },
                        {
                            "ID": "eventQueueLength",
@@ -132,64 +139,44 @@
                            "Unit": "Events"
                        },
                        {
-                           "ID": "missedRuns",
-                           "Name": "Missed Runs",
-                           "Description": "Number of missed runs of tasks running on daemon.",
-                           "Counter": true,
-                           "Unit": "Runs"
-                       },
-                       {
-                           "ID": "queuedTasks",
-                           "Name": "Queued Tasks",
-                           "Description": "Number of tasks scheduled to be run, but are not running yet.",
+                           "ID": "taskCount",
+                           "Name": "Task Count",
+                           "Description": "Total number of configured tasks.",
                            "Counter": false,
                            "Unit": "Tasks"
                        },
                        {
                            "ID": "runningTasks",
                            "Name": "Running Tasks",
-                           "Description": "Number of currently running tasks.",
+                           "Description": "Number of tasks in the running state.",
                            "Counter": false,
                            "Unit": "Tasks"
                        },
                        {
-                           "ID": "taskCount",
-                           "Name": "Task Count",
-                           "Description": "Total number of tasks.",
+                           "ID": "queuedTasks",
+                           "Name": "Queued Tasks",
+                           "Description": "Number of tasks queued waiting to be run.",
                            "Counter": false,
                            "Unit": "Tasks"
+                       },
+                       {
+                           "ID": "missedRuns",
+                           "Name": "Missed Runs",
+                           "Description": "Number of tasks that missed their scheduled run time.",
+                           "Counter": true,
+                           "Unit": "Runs"
+                       },
+                       {
+                           "ID": "percentBlocked",
+                           "Name": "Percent Blocked",
+                           "Description": "Percent of the time blocked by plugin code execution.",
+                           "Counter": true,
+                           "Unit": "percent"
                        }
                    ]
                }
            ],
            "GraphConfigs": [
-               {
-                   "id": "dataPoints",
-                   "name": "Data Points",
-                   "footer": false,
-                   "returnset": "EXACT",
-                   "type": "line",
-                   "yAxisLabel": "Data Points",
-                   "description": "Number of datapoints collected.",
-                   "range": {
-                       "start": "1h-ago",
-                       "end": "0s-ago"
-                   },
-                   "datapoints": [
-                       {
-                           "aggregator": "avg",
-                           "fill": false,
-                           "format": "%%d",
-                           "id": "dataPoints",
-                           "legend": "Data Points",
-                           "metric": "dataPoints",
-                           "metricSource": "zenpython",
-                           "name": "Data Points",
-                           "rate": true,
-                           "type": "line"
-                       }
-                   ]
-               },
                {
                    "id": "devices",
                    "name": "Devices",
@@ -197,7 +184,7 @@
                    "returnset": "EXACT",
                    "type": "line",
                    "yAxisLabel": "Devices",
-                   "description": "Number of devices.",
+                   "description": "Number of devices being collected.",
                    "range": {
                        "start": "1h-ago",
                        "end": "0s-ago"
@@ -218,13 +205,40 @@
                    ]
                },
                {
-                   "id": "eventCount",
-                   "name": "Event Count",
+                   "id": "dataPoints",
+                   "name": "Datapoint Rate",
                    "footer": false,
                    "returnset": "EXACT",
                    "type": "line",
-                   "yAxisLabel": "Event Count",
-                   "description": "Total number of events.",
+                   "yAxisLabel": "Datapoints/sec",
+                   "description": "Number of datapoints collected per second.",
+                   "range": {
+                       "start": "1h-ago",
+                       "end": "0s-ago"
+                   },
+                   "datapoints": [
+                       {
+                           "aggregator": "avg",
+                           "fill": false,
+                           "format": "%%d",
+                           "id": "dataPoints",
+                           "legend": "Datapoints",
+                           "metric": "dataPoints",
+                           "metricSource": "zenpython",
+                           "name": "Datapoints",
+                           "rate": true,
+                           "type": "line"
+                       }
+                   ]
+               },
+               {
+                   "id": "eventCount",
+                   "name": "Event Rate",
+                   "footer": false,
+                   "returnset": "EXACT",
+                   "type": "line",
+                   "yAxisLabel": "Events/sec",
+                   "description": "Number of events sent per second.",
                    "range": {
                        "start": "1h-ago",
                        "end": "0s-ago"
@@ -235,10 +249,22 @@
                            "fill": false,
                            "format": "%%d",
                            "id": "eventCount",
-                           "legend": "Event Count",
+                           "legend": "Events",
                            "metric": "eventCount",
                            "metricSource": "zenpython",
-                           "name": "Event Count",
+                           "name": "Events",
+                           "rate": true,
+                           "type": "line"
+                       },
+                       {
+                           "aggregator": "avg",
+                           "fill": false,
+                           "format": "%%d",
+                           "id": "discardedEvents",
+                           "legend": "Discarded",
+                           "metric": "discardedEvents",
+                           "metricSource": "zenpython",
+                           "name": "Discarded",
                            "rate": true,
                            "type": "line"
                        }
@@ -251,7 +277,7 @@
                    "returnset": "EXACT",
                    "type": "line",
                    "yAxisLabel": "Event Queue Length",
-                   "description": "The number of events pending to be flushed from a daemon's memory queue.",
+                   "description": "Number of events queued to be set to zenhub.",
                    "range": {
                        "start": "1h-ago",
                        "end": "0s-ago"
@@ -267,33 +293,6 @@
                            "metricSource": "zenpython",
                            "name": "Event Queue Length",
                            "rate": false,
-                           "type": "line"
-                       }
-                   ]
-               },
-               {
-                   "id": "missedRuns",
-                   "name": "Missed Runs",
-                   "footer": false,
-                   "returnset": "EXACT",
-                   "type": "line",
-                   "yAxisLabel": "Missed Runs",
-                   "description": "Number of missed runs of tasks running on daemon.",
-                   "range": {
-                       "start": "1h-ago",
-                       "end": "0s-ago"
-                   },
-                   "datapoints": [
-                       {
-                           "aggregator": "avg",
-                           "fill": false,
-                           "format": "%%d",
-                           "id": "missedRuns",
-                           "legend": "Missed Runs",
-                           "metric": "missedRuns",
-                           "metricSource": "zenpython",
-                           "name": "Missed Runs",
-                           "rate": true,
                            "type": "line"
                        }
                    ]
@@ -345,6 +344,60 @@
                            "metricSource": "zenpython",
                            "name": "Task Count",
                            "rate": false,
+                           "type": "line"
+                       }
+                   ]
+               },
+               {
+                   "id": "missedRuns",
+                   "name": "Missed Runs",
+                   "footer": false,
+                   "returnset": "EXACT",
+                   "type": "line",
+                   "yAxisLabel": "Missed Runs",
+                   "description": "Number of tasks that missed their scheduled run time.",
+                   "range": {
+                       "start": "1h-ago",
+                       "end": "0s-ago"
+                   },
+                   "datapoints": [
+                       {
+                           "aggregator": "avg",
+                           "fill": false,
+                           "format": "%%d",
+                           "id": "missedRuns",
+                           "legend": "Missed Runs",
+                           "metric": "missedRuns",
+                           "metricSource": "zenpython",
+                           "name": "Missed Runs",
+                           "rate": true,
+                           "type": "line"
+                       }
+                   ]
+               },
+               {
+                   "id": "percentBlocked",
+                   "name": "Percent Blocked",
+                   "footer": false,
+                   "returnset": "EXACT",
+                   "type": "line",
+                   "yAxisLabel": "percent",
+                   "description": "Percent of the time blocked by plugin code execution.",
+                   "range": {
+                       "start": "1h-ago",
+                       "end": "0s-ago"
+                   },
+                   "datapoints": [
+                       {
+                           "aggregator": "avg",
+                           "fill": false,
+                           "format": "%%d",
+                           "id": "percentBlocked",
+                           "legend": "Blocked",
+                           "metric": "percentBlocked",
+                           "metricSource": "zenpython",
+                           "name": "Blocked",
+                           "rate": true,
                            "type": "line"
                        }
                    ]

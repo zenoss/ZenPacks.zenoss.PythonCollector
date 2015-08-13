@@ -1,5 +1,60 @@
 This ZenPack provides a new ''Python'' data source type. It also provides a new ''zenpython'' collector daemon that is responsible for collecting these data sources.
 
+== Usage ==
+
+This zenpack adds a new ''zenpython'' collector daemon. In most cases there is nothing you need to know about to make use of this additional collector functionality. The following sections describe available configuration, troubleshooting and tuning information.
+
+=== ZenPython Configuration Options ===
+
+The following options can be specified in the zenpython configuration file. Typically the default values for these options are appropriate and don't need to be adjusted.
+
+;blockingtimeout
+: Allows you to set a maximum allowable time any ZenPack-provided plugin can execute blocking (or synchronous) code. This option exists because misbehaving plugins that are not written in asynchronous style can prevent zenpython from collecting other data. Setting this value to 0 disables the timeout and lets plugins execute blocking code for an infinite amount of time. Setting this value to a positive number causes zenpython to abort plugin code if it spends more than that many seconds blocking zenpython. The default value is 0.
+
+;twistedthreadpoolsize
+: Controls size of threads pool. Datasources can use multi-threading to run multiple requests in parallel. Increasing this value may boost performance at the cost of system memory used. The default value is 10.
+
+;collect
+: Allows only specific plugins to run. This is primarily a developer option to help reduce the noise while developing plugins. The default is to collect all configured plugins. The value for this option is a regular expression. Only plugins which class name matches the regular expression will be run.
+
+;ignore
+: Prevents specific plugins from running. This is primarily a developer option to help reduce the noise while developing plugins. The default is to not ignore any configured plugins. The value for this option is a regular expression. Only plugins which class name doesn't match the regular expression will be run.
+
+=== ZenPython Statistics ===
+
+There are two kinds of statistics available from the ''zenpython'' collector daemon. There are datapoints which can be plotted on graphs and have thresholds defined, and there are detailed task statistics that can be logged.
+
+==== Datapoints ====
+
+The following standard collector datapoints are available for ''zenpython''. These datapoints are provided by the Zenoss platform and may differ depending on which version of Zenoss is being used.
+
+* ''devices'': Number of devices being collected.
+* ''dataPoints'': Number of datapoints collected per second.
+* ''eventCount'': Number of events sent per second.
+* ''discardedEvents'': Number of events discarded per second.
+* ''eventQueueLength'': Number of events queued to be set to zenhub.
+* ''taskCount'': Total number of configured tasks.
+* ''runningTasks'': Number of tasks in the running state.
+* ''queuedTasks'': Number of tasks queued waiting to be run.
+* ''missedRuns'': Number of tasks that missed their scheduled run time.
+
+The following additional collector datapoonts are available for ''zenpython''. These datapoints are provided by the collector daemon and may differ depending on which version of PythonCollector is being used.
+
+* ''percentBlocked'': Percent of the time blocked by plugin code execution.
+
+==== Task Statistics ====
+
+The datapoints above provide for a good high-level understanding of the overall trends for the zenpython collector daemon. When certain datapoints show a potential problem it can often be useful to capture detailed per-task statistics to identify which tasks are contributing to the problem.
+
+The zenpython process will dump detailed per-task information to its regular log file if it sent the SIGUSR2 signal. Depending on the Zenoss version being used, different utilities are provided for invoking this signal.
+
+* Zenoss 5: ''serviced service action zenpython stats''
+* Zenoss 4: ''zenpython stats''
+
+Running those commands won't produce any direct output. You must look at the zenpython log to see the resulting statistics.
+
+== Developing Plugins ==
+
 The goal of the ''Python'' data source type is to replicate some of the standard ''COMMAND'' data source type's functionality without requiring a new shell and shell subprocess to be spawned each time the data source is collected. The ''COMMAND'' data source type is infinitely flexible, but because of the shell and subprocess spawning, it's performance and ability to pass data into the collection script are limited. The ''Python'' data source type circumvents the need to spawn subprocesses by forcing the collection code to be asynchronous using the Twisted library. It circumvents the problem with passing data into the collection logic by being able to pass any basic Python data type without the need to worry about shell escaping issues.
 
 The ''Python'' data source type is intended to be used in one of two ways. The first way is directly through the creation of Python data sources through the web interface or in a ZenPack. When used in this way, it is the responsibility of the data source creator to implement the required Python class specified in the data source's ''Python Class Name'' property field. The second way the ''Python'' data source can be used is as a base class for another data source type. Used in this way, the ZenPack author will create a subclass of ''PythonDataSource'' to provide a higher-level functionality to the user. The user is then not responsible for writing a Python class to collect and process data.
@@ -248,12 +303,12 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
     pass
 </syntaxhighlight>
 
-== Zenpython options ==
-
-;twistedthreadpoolsize
-* Controls size of threads pool. Default value is '10'. Datasources can use multithreading to run multiple requests in parallel. Increasing this value may boost performance for the cost of system memory used.
-
 == Changes ==
+
+;1.7.2
+* Add "blockingtimeout" option to zenpython.
+* Add detailed task state tracking to zenpython plugin execution.
+* Add "percentBlocked" metric to zenpython.
 
 ;1.7.1 (2015-07-30)
 * Avoid a tight loop when writing metrics and events. (ZEN-18956)
