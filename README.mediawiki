@@ -309,6 +309,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 * Add "blockingtimeout" option to zenpython.
 * Add detailed task state tracking to zenpython plugin execution.
 * Add "percentBlocked" metric to zenpython.
+* Restore compatibility with Zenoss 4.1.
 
 ;1.7.1 (2015-07-30)
 * Avoid a tight loop when writing metrics and events. (ZEN-18956)
