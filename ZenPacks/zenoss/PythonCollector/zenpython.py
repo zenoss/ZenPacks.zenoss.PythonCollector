@@ -487,7 +487,11 @@ def main():
     task_splitter = PerDataSourceInstanceTaskSplitter(task_factory)
     daemon = CollectorDaemon(preferences, task_splitter)
     pool_size = preferences.options.threadPoolSize
-    reactor.suggestThreadPoolSize(pool_size)
+
+    # The Twisted version shipped with Zenoss 4.1 doesn't have this.
+    if hasattr(reactor, 'suggestThreadPoolSize'):
+        reactor.suggestThreadPoolSize(pool_size)
+
     daemon.run()
 
 
