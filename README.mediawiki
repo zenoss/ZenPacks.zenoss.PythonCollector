@@ -8,8 +8,8 @@ This zenpack adds a new ''zenpython'' collector daemon. In most cases there is n
 
 The following options can be specified in the zenpython configuration file. Typically the default values for these options are appropriate and don't need to be adjusted.
 
-;blockingtimeout
-: Allows you to set a maximum allowable time any ZenPack-provided plugin can execute blocking (or synchronous) code. This option exists because misbehaving plugins that are not written in asynchronous style can prevent zenpython from collecting other data. Setting this value to 0 disables the timeout and lets plugins execute blocking code for an infinite amount of time. Setting this value to a positive number causes zenpython to abort plugin code if it spends more than that many seconds blocking zenpython. The default value is 0.
+;blockingwarning
+: The zenpython collector daemon executes plugin code provided by other ZenPacks. If this plugin code blocks for too long it will prevent zenpython from performing other tasks including collecting other datasources while the plugin code is executed. The ''blockingwarning'' option will cause zenpython to log a warning for any plugin code that blocks for the configured number of seconds or more. The default value is 30. Decimal precision such as 0.5 can be used.
 
 ;twistedthreadpoolsize
 : Controls size of threads pool. Datasources can use multi-threading to run multiple requests in parallel. Increasing this value may boost performance at the cost of system memory used. The default value is 10.
@@ -306,7 +306,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 == Changes ==
 
 ;1.7.2
-* Add "blockingtimeout" option to zenpython.
+* Add "blockingwarning" option to zenpython.
 * Add detailed task state tracking to zenpython plugin execution.
 * Add "percentBlocked" metric to zenpython.
 * Restore compatibility with Zenoss 4.1.
