@@ -19,7 +19,6 @@ log = logging.getLogger('zen.python')
 import functools
 import inspect
 import re
-import signal
 import time
 
 import Globals
@@ -93,11 +92,11 @@ class Preferences(object):
 
     def buildOptions(self, parser):
         parser.add_option(
-            '--blockingtimeout',
-            dest='blockingTimeout',
+            '--blockingwarning',
+            dest='blockingWarning',
             type='float',
-            default=0.0,
-            help="Timeout for blocking operations in seconds (default %default)")
+            default=30.0,
+            help="Log warning when plugin code blocks for X seconds")
 
         parser.add_option(
             '--twistedthreadpoolsize',
@@ -185,7 +184,7 @@ class PythonCollectionTask(BaseTask):
             ICollectorPreferences, 'zenpython')
 
         self.cycling = self._preferences.options.cycle
-        self.blockingTimeout = self._preferences.options.blockingTimeout
+        self.blockingWarning = self._preferences.options.blockingWarning
 
         self.plugin = self.initializePlugin()
 
@@ -262,26 +261,28 @@ class PythonCollectionTask(BaseTask):
             start_time = time.time()
 
             try:
-                if self.blockingTimeout:
-                    # Add a timeout configured to do so.
-                    return synchronous_timeout(
-                        timeout=self.blockingTimeout,
-                        message="timeout ({})".format(f.__name__)
-                        )(f)(*args, **kwargs)
-                else:
-                    # Otherwise just run the function.
-                    return f(*args, **kwargs)
+                return f(*args, **kwargs)
             finally:
+                elapsed_time = (time.time() - start_time)
+
                 # Track seconds spent in wrapped functions with as much
                 # precision as the system allows. Convert the precise
                 # seconds value to the closest centiseconds
                 # approximation for our percentBlocked datapoint value.
                 # Centiseconds are chosen because their rate equals
                 # percent of total time spent.
-                self.percentBlocked.value += (time.time() - start_time) * 100
+                self.percentBlocked.value += elapsed_time * 100
 
                 # Restore original state even if an exception occurs.
                 self.state = original_state
+
+                if self.blockingWarning is not None:
+                    if elapsed_time >= self.blockingWarning:
+                        log.warning(
+                            "Task %s blocked for %.2f seconds in %s",
+                            self.name,
+                            elapsed_time,
+                            f.__name__)
 
         return __wrapper
 
@@ -432,53 +433,6 @@ class PythonCollectionTask(BaseTask):
             error = result
 
         log.error('%s unhandled plugin error: %s', self.name, error)
-
-
-class SynchronousTimeoutError(Exception):
-
-    """Exception raised when a synchronous operation takes too long."""
-
-    timeout = None
-
-    def __init__(self, message, timeout=None):
-        super(SynchronousTimeoutError, self).__init__(message)
-        self.timeout = timeout
-
-    def __repr__(self):
-        return "{cls}(message={message!r}, timeout={timeout!r})".format(
-            cls=self.__class__.__name__,
-            message=self.message,
-            timeout=self.timeout)
-
-
-def synchronous_timeout(timeout=0.0, message="timeout"):
-    """Function decorator that raises SynchronousTimeoutError.
-
-    Timeout is specified in seconds and accepts an int or float. Raises
-    SynchronousTimeoutError if the decorated function's execution takes
-    longer than timeout seconds.
-
-    Only functional for functions running on the main thread due to the
-    use of SIGALRM.
-
-    """
-    def wrap_function(f):
-        @functools.wraps(f)
-        def __wrapper(*args, **kwargs):
-            def alarm_handler(signum, frame):
-                raise SynchronousTimeoutError(message=message, timeout=timeout)
-
-            old_handler = signal.signal(signal.SIGALRM, alarm_handler)
-            signal.setitimer(signal.ITIMER_REAL, float(timeout) / 1000)
-            try:
-                return f(*args, **kwargs)
-            finally:
-                signal.setitimer(signal.ITIMER_REAL, 0.0)
-                signal.signal(signal.SIGALRM, old_handler)
-
-        return __wrapper
-
-    return wrap_function
 
 
 def main():
