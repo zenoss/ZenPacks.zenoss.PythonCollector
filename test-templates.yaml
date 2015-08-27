@@ -1,0 +1,18 @@
+/Test-PythonCollector:
+  description: Tests for PythonCollector.
+
+  datasources:
+    sleepMain:
+      type: Python
+      cycletime: 10
+      plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestSleepMainPlugin
+
+    sleepThread:
+      type: Python
+      cycletime: 10
+      plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestSleepThreadPlugin
+
+    sleepAsync:
+      type: Python
+      cycletime: 10
+      plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestSleepAsyncPlugin

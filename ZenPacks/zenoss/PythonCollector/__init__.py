@@ -7,7 +7,20 @@
 #
 ##############################################################################
 
+import Globals  # noqa
+
+from Products.ZenModel.ZenPack import ZenPack as ZenPackBase
 from Products.ZenUtils.Utils import unused
+
+
+class ZenPack(ZenPackBase):
+    def install(self, app):
+        # Our objects.xml assumes the /Zenoss OSProcessOrganizer already
+        # exists. It might not, so we have to create it before calling
+        # super.
+        app.getDmdRoot('Processes').createOrganizer('Zenoss')
+
+        super(ZenPack, self).install(app)
 
 
 # Patch last to avoid import recursion problems.
