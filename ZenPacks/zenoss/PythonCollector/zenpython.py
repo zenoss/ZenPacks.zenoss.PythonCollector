@@ -16,8 +16,10 @@ Event and statistic collection daemon for python modules.
 import logging
 log = logging.getLogger('zen.python')
 
+import functools
 import inspect
 import re
+import time
 
 import Globals
 
@@ -37,6 +39,7 @@ if __name__ == "__main__":
 
 from twisted.internet import reactor, task
 from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
+from twisted.python.failure import Failure
 from twisted.spread import pb
 
 import zope.interface
@@ -50,6 +53,7 @@ from Products.ZenCollector.interfaces import (
     IDataService,
     IEventService,
     IScheduledTask,
+    IStatisticsService,
     )
 
 from Products.ZenCollector.tasks import (
@@ -88,19 +92,28 @@ class Preferences(object):
 
     def buildOptions(self, parser):
         parser.add_option(
-            '--ignore',
-            dest='ignorePlugins', default="",
-            help="Python plugins to ignore. Takes a regular expression")
-        parser.add_option(
-            '--collect',
-            dest='collectPlugins', default="",
-            help="Python plugins to use. Takes a regular expression")
+            '--blockingwarning',
+            dest='blockingWarning',
+            type='float',
+            default=30.0,
+            help="Log warning when plugin code blocks for X seconds")
+
         parser.add_option(
             '--twistedthreadpoolsize',
             dest='threadPoolSize',
             type='int',
             default=10,
-            help="Suggested size for twisted reactor threads pool. Takes an integer")
+            help="Maximum threads in thread pool (default %default)")
+
+        parser.add_option(
+            '--collect',
+            dest='collectPlugins', default="",
+            help="Python plugins to use. Takes a regular expression")
+
+        parser.add_option(
+            '--ignore',
+            dest='ignorePlugins', default="",
+            help="Python plugins to ignore. Takes a regular expression")
 
     def postStartup(self):
         if self.options.ignorePlugins and self.options.collectPlugins:
@@ -147,10 +160,10 @@ class PythonCollectionTask(BaseTask):
 
     zope.interface.implements(IScheduledTask)
 
-    STATE_FETCH_DATA = 'FETCH_DATA'
     STATE_STORE_PERF = 'STORE_PERF_DATA'
-    STATE_SEND_EVENTS = 'STATE_SEND_EVENTS'
-    STATE_APPLY_MAPS = 'STATE_APPLY_MAPS'
+    STATE_SEND_EVENTS = 'SEND_EVENTS'
+    STATE_APPLY_MAPS = 'APPLY_MAPS'
+    STATE_BLOCKING = 'BLOCKING'
 
     def __init__(self, taskName, configId, scheduleIntervalSeconds, taskConfig):
         super(PythonCollectionTask, self).__init__(
@@ -166,20 +179,62 @@ class PythonCollectionTask(BaseTask):
         self._collector = zope.component.queryUtility(ICollector)
         self._dataService = zope.component.queryUtility(IDataService)
         self._eventService = zope.component.queryUtility(IEventService)
+        self._statsService = zope.component.queryUtility(IStatisticsService)
         self._preferences = zope.component.queryUtility(
             ICollectorPreferences, 'zenpython')
 
         self.cycling = self._preferences.options.cycle
+        self.blockingWarning = self._preferences.options.blockingWarning
 
+        self.plugin = self.initializePlugin()
+
+        # New in 1.6: Support writeMetricWithMetadata().
+        self.writeMetricWithMetadata = hasattr(
+            self._dataService, 'writeMetricWithMetadata')
+
+        # New in 1.7: Use startDelay from the plugin.
+        self.startDelay = getattr(self.plugin, 'startDelay', None)
+
+        # New in 1.7.2: Wrap all calls to plugin methods in synchronous
+        # timeouts if "blockingtimeout" is non-zero. This is done to
+        # guard zenpython against plugins that pause the event loop with
+        # blocking code.
+        self.pluginCalls = {
+            x: self.wrapPluginCall(getattr(self.plugin, x))
+            for x in [
+                'collect',
+                'onResult',
+                'onSuccess',
+                'onError',
+                'onComplete',
+                'cleanup',
+            ]
+        }
+
+        # New in 1.7.2: Track the percent of time zenpython is blocked
+        # by plugin code. Plugin code should be asynchronous and the
+        # amount of time they block should be very small. However, code
+        # is code and we can't guarantee that it's asynchronous. So we
+        # measure it instead.
+        try:
+            self._statsService.addStatistic('percentBlocked', 'COUNTER')
+        except NameError:
+            # NameError means the statistic already exists.
+            pass
+
+        self.percentBlocked = self._statsService.getStatistic('percentBlocked')
+
+    def initializePlugin(self):
+        """Return initialized PythonDataSourcePlugin for this task."""
         from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
         plugin_class = load_plugin_class(
             self.config.datasources[0].plugin_classname)
 
         # New in 1.3: Added passing of config to plugin constructor.
         if 'config' in inspect.getargspec(plugin_class.__init__).args:
-            self.plugin = plugin_class(config=self.config)
+            plugin = plugin_class(config=self.config)
         else:
-            self.plugin = plugin_class()
+            plugin = plugin_class()
 
         # Provide access to getService, without providing access
         # to other parts of self, or encouraging the use of
@@ -190,28 +245,63 @@ class PythonCollectionTask(BaseTask):
             service = yield self._collector.getService(service_name)
             returnValue(service)
 
-        self.plugin.getService = _getServiceFromCollector
+        plugin.getService = _getServiceFromCollector
 
-        # New in 1.6: Support writeMetricWithMetadata().
-        self.writeMetricWithMetadata = hasattr(
-            self._dataService, 'writeMetricWithMetadata')
+        return plugin
 
-        # New in 1.7: Use startDelay from the plugin.
-        self.startDelay = getattr(self.plugin, 'startDelay', None)
+    def wrapPluginCall(self, f):
+        """Records detailed statistics for wrapped function."""
+        @functools.wraps(f)
+        def __wrapper(*args, **kwargs):
+            # Save original state to restore after running function.
+            original_state = self.state
+
+            # Set state and set start time then execute function.
+            self.state = PythonCollectionTask.STATE_BLOCKING
+            start_time = time.time()
+
+            try:
+                return f(*args, **kwargs)
+            finally:
+                elapsed_time = (time.time() - start_time)
+
+                # Track seconds spent in wrapped functions with as much
+                # precision as the system allows. Convert the precise
+                # seconds value to the closest centiseconds
+                # approximation for our percentBlocked datapoint value.
+                # Centiseconds are chosen because their rate equals
+                # percent of total time spent.
+                self.percentBlocked.value += elapsed_time * 100
+
+                # Restore original state even if an exception occurs.
+                self.state = original_state
+
+                if self.blockingWarning is not None:
+                    if elapsed_time >= self.blockingWarning:
+                        log.warning(
+                            "Task %s blocked for %.2f seconds in %s",
+                            self.name,
+                            elapsed_time,
+                            f.__name__)
+
+        return __wrapper
 
     def doTask(self):
         """Collect a single PythonDataSource."""
-        d = self.plugin.collect(self.config)
-        d.addBoth(self.plugin.onResult, self.config)
-        d.addCallback(self.plugin.onSuccess, self.config)
-        d.addErrback(self.plugin.onError, self.config)
-        d.addBoth(self.plugin.onComplete, self.config)
+        d = self.pluginCalls['collect'](self.config)
+        d.addBoth(self.pluginCalls['onResult'], self.config)
+        d.addCallback(self.pluginCalls['onSuccess'], self.config)
+        d.addErrback(self.pluginCalls['onError'], self.config)
+        d.addBoth(self.pluginCalls['onComplete'], self.config)
         d.addCallback(self.processResults)
         d.addErrback(self.handleError)
         return d
 
     def cleanup(self):
-        return self.plugin.cleanup(self.config)
+        try:
+            return self.pluginCalls['cleanup'](self.config)
+        except Exception as e:
+            return self.handleError(e)
 
     @inlineCallbacks
     def processResults(self, result):
@@ -337,7 +427,12 @@ class PythonCollectionTask(BaseTask):
                 log.debug("%s no changes applied", self.name)
 
     def handleError(self, result):
-        log.error('%s unhandled plugin error: %s', self.name, result)
+        if isinstance(result, Failure):
+            error = result.value
+        else:
+            error = result
+
+        log.error('%s unhandled plugin error: %s', self.name, error)
 
 
 def main():
@@ -346,7 +441,11 @@ def main():
     task_splitter = PerDataSourceInstanceTaskSplitter(task_factory)
     daemon = CollectorDaemon(preferences, task_splitter)
     pool_size = preferences.options.threadPoolSize
-    reactor.suggestThreadPoolSize(pool_size)
+
+    # The Twisted version shipped with Zenoss 4.1 doesn't have this.
+    if hasattr(reactor, 'suggestThreadPoolSize'):
+        reactor.suggestThreadPoolSize(pool_size)
+
     daemon.run()
 
 
