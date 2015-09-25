@@ -114,6 +114,11 @@ class PythonDataSourcePlugin(object):
 
     proxy_attributes = ()
 
+    # New in 1.8.0: Optional. If timeout set, zenpython is about to kill plugin
+    # exceeding timeout. Useful to guard zenpython against plugins that pause
+    # the event loop with blocking code.
+    timeout = 0
+
     @classmethod
     def config_key(cls, datasource, context):
         """
@@ -212,3 +217,19 @@ class PythonDataSourcePlugin(object):
     def cleanup(self, config):
         """Called when collector exits, or task is deleted or recreated."""
         return
+
+
+class SynchronousTimeoutError(Exception):
+
+    """Exception raised when a synchronous operation takes too long."""
+    timeout = None
+
+    def __init__(self, message, timeout=None):
+        super(SynchronousTimeoutError, self).__init__(message)
+        self.timeout = timeout
+
+    def __repr__(self):
+        return "{cls}(message={message!r}, timeout={timeout!r})".format(
+            cls=self.__class__.__name__,
+            message=self.message,
+            timeout=self.timeout)

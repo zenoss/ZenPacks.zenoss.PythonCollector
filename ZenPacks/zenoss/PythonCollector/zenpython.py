@@ -19,6 +19,7 @@ log = logging.getLogger('zen.python')
 import functools
 import inspect
 import re
+import signal
 import time
 
 import Globals
@@ -67,7 +68,10 @@ from Products.ZenEvents import ZenEventClasses
 from Products.ZenUtils.Utils import unused
 
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
-from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
+from ZenPacks.zenoss.PythonCollector.services.PythonConfig \
+    import PythonDataSourceConfig
+from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
+    import SynchronousTimeoutError
 
 unused(Globals)
 
@@ -195,6 +199,9 @@ class PythonCollectionTask(BaseTask):
         # New in 1.7: Use startDelay from the plugin.
         self.startDelay = getattr(self.plugin, 'startDelay', None)
 
+        # New in 1.8.0: Use timeout from the plugin.
+        self.timeout = getattr(self.plugin, 'timeout', 0)
+
         # New in 1.7.2: Wrap all calls to plugin methods in synchronous
         # timeouts if "blockingtimeout" is non-zero. This is done to
         # guard zenpython against plugins that pause the event loop with
@@ -261,7 +268,15 @@ class PythonCollectionTask(BaseTask):
             start_time = time.time()
 
             try:
-                return f(*args, **kwargs)
+                if self.timeout:
+                    # Add a timeout configured to do so.
+                    return synchronous_timeout(
+                        timeout=self.timeout,
+                        message="timeout ({})".format(f.__name__)
+                        )(f)(*args, **kwargs)
+                else:
+                    # Otherwise just run the function.
+                    return f(*args, **kwargs)
             finally:
                 elapsed_time = (time.time() - start_time)
 
@@ -433,6 +448,36 @@ class PythonCollectionTask(BaseTask):
             error = result
 
         log.error('%s unhandled plugin error: %s', self.name, error)
+
+
+def synchronous_timeout(timeout=0.0, message="timeout"):
+    """Function decorator that raises SynchronousTimeoutError.
+
+    Timeout is specified in seconds and accepts an int or float. Raises
+    SynchronousTimeoutError if the decorated function's execution takes
+    longer than timeout seconds.
+
+    Only functional for functions running on the main thread due to the
+    use of SIGALRM.
+
+    """
+    def wrap_function(f):
+        @functools.wraps(f)
+        def __wrapper(*args, **kwargs):
+            def alarm_handler(signum, frame):
+                raise SynchronousTimeoutError(message=message, timeout=timeout)
+
+            old_handler = signal.signal(signal.SIGALRM, alarm_handler)
+            signal.setitimer(signal.ITIMER_REAL, float(timeout))
+            try:
+                return f(*args, **kwargs)
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0.0)
+                signal.signal(signal.SIGALRM, old_handler)
+
+        return __wrapper
+
+    return wrap_function
 
 
 def main():
