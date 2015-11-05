@@ -114,6 +114,9 @@ class PythonDataSourcePlugin(object):
 
     proxy_attributes = ()
 
+    # When it set to True, the collect method should return data instead of Deferred.
+    is_blocking = False
+
     @classmethod
     def config_key(cls, datasource, context):
         """
