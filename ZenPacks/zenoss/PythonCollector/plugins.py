@@ -9,6 +9,9 @@
 
 """PythonDataSourcePlugin implementations used for testing."""
 
+import logging
+LOG = logging.getLogger('zen.PythonCollect')
+
 import time
 
 from twisted.internet import defer, reactor, threads
@@ -87,3 +90,41 @@ class TestSleepAsyncPlugin(BaseTestPlugin):
 
         yield async_sleep(10)
         defer.returnValue(self.new_data())
+
+
+class TestNonBlockingPlugin(BaseTestPlugin):
+
+    """Plugin that returns a Deferred and doesn't block.
+
+    This plugin's collect method should be run in the zenpython process.
+
+    """
+
+    task_label = 'non-blocking'
+    is_blocking = False
+
+    def collect(self, config):
+        LOG.info("collecting TestNonBlockingPlugin")
+        data = self.new_data()
+        data['values'][None]['value1'] = 1.0
+        data['values'][None]['value2'] = 2.0
+        return defer.succeed(data)
+
+
+class TestBlockingPlugin(BaseTestPlugin):
+
+    """Plugin that blocks and returns data instead of a Deferred.
+
+    This plugin's collect method should be run in a subprocess.
+
+    """
+
+    task_label = 'blocking'
+    is_blocking = True
+
+    def collect(self, config):
+        LOG.info("collecting TestBlockingPlugin")
+        data = self.new_data()
+        data['values'][None]['value1'] = 1.0
+        data['values'][None]['value2'] = 2.0
+        return data

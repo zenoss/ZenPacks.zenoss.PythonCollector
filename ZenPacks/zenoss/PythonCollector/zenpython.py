@@ -18,6 +18,7 @@ log = logging.getLogger('zen.python')
 
 import functools
 import inspect
+import multiprocessing
 import re
 import time
 
@@ -38,6 +39,7 @@ if __name__ == "__main__":
 
 
 from twisted.internet import reactor, task
+from twisted.internet.defer import Deferred
 from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
 from twisted.python.failure import Failure
 from twisted.spread import pb
@@ -89,6 +91,7 @@ class Preferences(object):
     cycleInterval = 5 * 60  # 5 minutes
     configCycleInterval = 60 * 60 * 12  # 12 hours
     maxTasks = None  # use system default
+    pool = None
 
     def buildOptions(self, parser):
         parser.add_option(
@@ -106,6 +109,20 @@ class Preferences(object):
             help="Maximum threads in thread pool (default %default)")
 
         parser.add_option(
+            '--processpoolsize',
+            dest='processPoolSize',
+            type='int',
+            default=2,
+            help="Maximum processes in process pool (default %default)")
+
+        parser.add_option(
+            '--processpooltasksperchild',
+            dest='processPoolTasksPerChild',
+            type='int',
+            default=1000,
+            help="Tasks executed by process before it's recycled (default %default)")
+
+        parser.add_option(
             '--collect',
             dest='collectPlugins', default="",
             help="Python plugins to use. Takes a regular expression")
@@ -119,6 +136,19 @@ class Preferences(object):
         if self.options.ignorePlugins and self.options.collectPlugins:
             raise SystemExit("Only one of --ignore or --collect"
                              " can be used at a time")
+
+    def getPool(self):
+        if self.pool is None:
+            log.info(
+                "creating pool of %s processes with %s tasks per child",
+                self.options.processPoolSize,
+                self.options.processPoolTasksPerChild)
+
+            self.pool = multiprocessing.Pool(
+                processes=self.options.processPoolSize,
+                maxtasksperchild=self.options.processPoolTasksPerChild)
+
+        return self.pool
 
 
 class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
@@ -224,6 +254,37 @@ class PythonCollectionTask(BaseTask):
 
         self.percentBlocked = self._statsService.getStatistic('percentBlocked')
 
+        # New in 1.8.0: Allow plugins to declare themselves to be blocking.
+        # This changes the contract for the plugin's collect method. When
+        # is_blocking is set to True for the class, the collect method should
+        # return data instead of a Deferred that will ultimately be called
+        # with data.
+        #
+        # This has been done to accomodate plugins that couldn't reasonably
+        # be written in a non-blocking way. The collect method of these plugins
+        # will be executed in a forked subprocess and will therefore be
+        # competing for a reduced set of resources so we're less able to
+        # handle a lot of blocking tasks without increasing the pool size and
+        # consuming a considerable amount more memory.
+        #
+        # There are some other limitations for blocking plugins.
+        #
+        # 1. The plugin's constructor (__init__) is called on each collection
+        #    interval instead of once when the task is created. This means
+        #    there's not a performance benefit to doing task initialization
+        #    in the constructor.
+        #
+        # 2. self.getService() can't be called within the collect method
+        #    because there's not a connection back to zenhub from the
+        #    forked subprocess.
+        #
+        # 3. Absolutely no module or global state should expect to be preserved
+        #    between calls to collect. This means stashing authentication
+        #    tokens and things like that in globals won't work.
+        self.is_blocking = getattr(self.plugin, 'is_blocking', False)
+        if self.is_blocking:
+            self.pool = self._preferences.getPool()
+
     def initializePlugin(self):
         """Return initialized PythonDataSourcePlugin for this task."""
         from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
@@ -288,7 +349,22 @@ class PythonCollectionTask(BaseTask):
 
     def doTask(self):
         """Collect a single PythonDataSource."""
-        d = self.pluginCalls['collect'](self.config)
+        if self.is_blocking:
+            d = Deferred()
+
+            def pool_callback(result):
+                if isinstance(result, Exception):
+                    d.errback(result)
+                else:
+                    d.callback(result)
+
+            self.pool.apply_async(
+                pool_collect,
+                (self.config,),
+                callback=pool_callback)
+        else:
+            d = self.pluginCalls['collect'](self.config)
+
         d.addBoth(self.pluginCalls['onResult'], self.config)
         d.addCallback(self.pluginCalls['onSuccess'], self.config)
         d.addErrback(self.pluginCalls['onError'], self.config)
@@ -433,6 +509,29 @@ class PythonCollectionTask(BaseTask):
             error = result
 
         log.error('%s unhandled plugin error: %s', self.name, error)
+
+
+def pool_collect(config):
+    """Collect config in a multiprocessing.Pool.
+
+    This function must exist at the module scope because it is called via
+    multiprocessing.Pool.apply_async().
+
+    """
+    try:
+        from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
+        plugin_class = load_plugin_class(config.datasources[0].plugin_classname)
+
+        # New in 1.3: Added passing of config to plugin constructor.
+        if 'config' in inspect.getargspec(plugin_class.__init__).args:
+            plugin = plugin_class(config=config)
+        else:
+            plugin = plugin_class()
+
+        return plugin.collect(config)
+
+    except Exception as e:
+        return e
 
 
 def main():
