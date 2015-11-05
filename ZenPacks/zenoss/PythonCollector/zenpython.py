@@ -287,7 +287,8 @@ class PythonCollectionTask(BaseTask):
 
     def initializePlugin(self):
         """Return initialized PythonDataSourcePlugin for this task."""
-        from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
+        from ZenPacks.zenoss.PythonCollector.services.PythonConfig import \
+            load_plugin_class
         plugin_class = load_plugin_class(
             self.config.datasources[0].plugin_classname)
 
@@ -350,6 +351,7 @@ class PythonCollectionTask(BaseTask):
     def doTask(self):
         """Collect a single PythonDataSource."""
         if self.is_blocking:
+            log.debug("blocking-style plugin %s", self.name)
             d = Deferred()
 
             def pool_callback(result):
@@ -363,6 +365,7 @@ class PythonCollectionTask(BaseTask):
                 (self.config,),
                 callback=pool_callback)
         else:
+            log.debug("non-blocking style plugin %s", self.name)
             d = self.pluginCalls['collect'](self.config)
 
         d.addBoth(self.pluginCalls['onResult'], self.config)
@@ -519,7 +522,8 @@ def pool_collect(config):
 
     """
     try:
-        from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
+        from ZenPacks.zenoss.PythonCollector.services.PythonConfig import \
+            load_plugin_class
         plugin_class = load_plugin_class(config.datasources[0].plugin_classname)
 
         # New in 1.3: Added passing of config to plugin constructor.
