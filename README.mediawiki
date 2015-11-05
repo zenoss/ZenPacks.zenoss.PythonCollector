@@ -14,6 +14,12 @@ The following options can be specified in the zenpython configuration file. Typi
 ;twistedthreadpoolsize
 : Controls size of threads pool. Datasources can use multi-threading to run multiple requests in parallel. Increasing this value may boost performance at the cost of system memory used. The default value is 10.
 
+;processpoolsize
+: Controls size of worker processes in pool.
+
+; processpooltasksperchild
+: Tasks executed by worker process before it's recycled.
+
 ;collect
 : Allows only specific plugins to run. This is primarily a developer option to help reduce the noise while developing plugins. The default is to collect all configured plugins. The value for this option is a regular expression. Only plugins which class name matches the regular expression will be run.
 
@@ -81,6 +87,9 @@ class MyPlugin(PythonDataSourcePlugin):
         'zCommandUsername',
         'zCommandPassword',
         )
+
+    # When it set to True, the collect method should return data instead of Deferred.
+    is_blocking = False
 
     @classmethod
     def config_key(cls, datasource, context):
@@ -304,6 +313,10 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 </syntaxhighlight>
 
 == Changes ==
+
+;1.8.0
+* Add support for blocking plugins. It will be executed in forked subprocess.
+* Add "processpoolsize" and "processpooltasksperchild" option to zenpython.
 
 ;1.7.2 (2015-08-27)
 * Add "blockingwarning" option to zenpython.
