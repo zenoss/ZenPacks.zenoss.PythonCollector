@@ -355,6 +355,7 @@ class PythonCollectionTask(BaseTask):
             d = Deferred()
 
             def pool_callback(result):
+                log.debug("return from blocking-style plugin %s", self.name)
                 if isinstance(result, Exception):
                     d.errback(result)
                 else:
