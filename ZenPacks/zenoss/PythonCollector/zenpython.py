@@ -20,6 +20,8 @@ import functools
 import inspect
 import re
 import time
+import subprocess
+import threading
 
 import Globals
 
@@ -64,7 +66,7 @@ from Products.ZenCollector.tasks import (
     )
 
 from Products.ZenEvents import ZenEventClasses
-from Products.ZenUtils.Utils import unused
+from Products.ZenUtils.Utils import unused, zenPath
 
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
@@ -89,6 +91,7 @@ class Preferences(object):
     cycleInterval = 5 * 60  # 5 minutes
     configCycleInterval = 60 * 60 * 12  # 12 hours
     maxTasks = None  # use system default
+    workers = []
 
     def buildOptions(self, parser):
         parser.add_option(
@@ -105,6 +108,10 @@ class Preferences(object):
             default=10,
             help="Maximum threads in thread pool (default %default)")
 
+        self.parser.add_option('--workers', dest='workers',
+            type='int', default=2,
+            help="Number of worker instances to handle requests")
+
         parser.add_option(
             '--collect',
             dest='collectPlugins', default="",
@@ -119,6 +126,39 @@ class Preferences(object):
         if self.options.ignorePlugins and self.options.collectPlugins:
             raise SystemExit("Only one of --ignore or --collect"
                              " can be used at a time")
+
+    def getWorkers(self):
+        if not len(self.workers):
+            log.info("creating pool of %s workers", self.options.workers)
+
+            for i in range(self.options.workers):
+                self.workers.append(
+                    self.createWorker()
+                )
+        return self.workers
+
+    def createWorker(self):
+        class Worker(object):
+            def __init__(self):
+                self.is_running = False
+                self.process = None
+                self.cmd = zenPath('bin', 'zenhubworker')
+
+            def run(self, timeout=0):
+                def target():
+                    self.process = subprocess.Popen(self.cmd, shell=False)
+                    self.process.communicate()
+
+                thread = threading.Thread(target=target)
+                thread.start()
+
+                if timeout:
+                    thread.join(timeout)
+                    if thread.is_alive():
+                        self.process.terminate()
+                        thread.join()
+                else:
+                    pass
 
 
 class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
