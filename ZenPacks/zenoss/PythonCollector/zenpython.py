@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 ##############################################################################
 #
 # Copyright (C) Zenoss, Inc. 2012, all rights reserved.
@@ -16,6 +17,7 @@ Event and statistic collection daemon for python modules.
 import logging
 log = logging.getLogger('zen.python')
 
+import collections
 import functools
 import inspect
 import re
@@ -37,7 +39,7 @@ if __name__ == "__main__":
         installReactor()
 
 
-from twisted.internet import reactor, task
+from twisted.internet import defer, reactor, task
 from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
 from twisted.python.failure import Failure
 from twisted.spread import pb
@@ -66,8 +68,20 @@ from Products.ZenCollector.tasks import (
 from Products.ZenEvents import ZenEventClasses
 from Products.ZenUtils.Utils import unused
 
+from ZenPacks.zenoss.PythonCollector import watchdog
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
+
+try:
+    from Products.ZenUtils.Utils import varPath
+except ImportError:
+    # Zenoss 4 doesn't have varPath. Implement it here.
+    from Products.ZenUtils.Utils import zenPath
+
+    def varPath(*args):
+        all_args = ['var'] + list(args)
+        return zenPath(*all_args)
+
 
 unused(Globals)
 
@@ -95,8 +109,15 @@ class Preferences(object):
             '--blockingwarning',
             dest='blockingWarning',
             type='float',
-            default=30.0,
+            default=3.0,
             help="Log warning when plugin code blocks for X seconds")
+
+        parser.add_option(
+            '--blockingtimeout',
+            dest='blockingTimeout',
+            type='float',
+            default=5.0,
+            help="Disable plugins that block for X seconds")
 
         parser.add_option(
             '--twistedthreadpoolsize',
@@ -120,6 +141,23 @@ class Preferences(object):
             raise SystemExit("Only one of --ignore or --collect"
                              " can be used at a time")
 
+        self.setupWatchdog()
+
+    def setupWatchdog(self):
+        self.blockingPlugins = watchdog.get_timeout_entries(
+            timeout_file=varPath('{}.blocked'.format(self.collectorName)))
+
+        log.info(
+            "plugins disabled by watchdog: %r",
+            list(self.blockingPlugins))
+
+        if self.options.blockingTimeout > 0:
+            log.info(
+                "starting watchdog with %.1fs timeout",
+                self.options.blockingTimeout)
+
+            watchdog.start()
+
 
 class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
     """A task splitter that splits each datasource into its own task."""
@@ -140,6 +178,8 @@ class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
         preferences = zope.component.queryUtility(
             ICollectorPreferences, 'zenpython')
 
+        self.sendDisabledDatasourceEvents(configs)
+
         def class_name(task):
             plugin = task.plugin
             return "%s.%s" % (plugin.__class__.__module__,
@@ -153,6 +193,39 @@ class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
             return {n: t for n, t in tasks.iteritems() if not ignore(class_name(t))}
         else:
             return tasks
+
+    def sendDisabledDatasourceEvents(self, configs):
+        preferences = zope.component.queryUtility(
+            ICollectorPreferences, 'zenpython')
+
+        disabled_map = collections.defaultdict(set)
+        for config in configs:
+            for datasource in config.datasources:
+                if datasource.plugin_classname in preferences.blockingPlugins:
+                    disabled_map[config.configId].add(
+                        '{}/{}'.format(
+                            datasource.template,
+                            datasource.datasource))
+
+        events = zope.component.queryUtility(IEventService)
+        for device_id, disabled_datasources in disabled_map.iteritems():
+            if len(disabled_datasources) > 1:
+                summary = (
+                    "multiple datasources have been disabled - see details")
+            else:
+                summary = "{} datasource has been disabled".format(
+                    list(disabled_datasources)[0])
+
+            events.sendEvent({
+                'device': device_id,
+                'severity': ZenEventClasses.Error,
+                'eventClassKey': 'zenpython-datasources-disabled',
+                'eventKey': 'zenpython-datasources-disabled',
+                'summary': summary,
+                'message': (
+                    "Some monitoring for this device has been disabled due to "
+                    "problems detected in the following datasources: {}"
+                    .format(', '.join(sorted(disabled_datasources))))})
 
 
 class PythonCollectionTask(BaseTask):
@@ -185,6 +258,8 @@ class PythonCollectionTask(BaseTask):
 
         self.cycling = self._preferences.options.cycle
         self.blockingWarning = self._preferences.options.blockingWarning
+        self.blockingTimeout = self._preferences.options.blockingTimeout
+        self.blockingPlugins = self._preferences.blockingPlugins
 
         self.plugin = self.initializePlugin()
 
@@ -288,7 +363,23 @@ class PythonCollectionTask(BaseTask):
 
     def doTask(self):
         """Collect a single PythonDataSource."""
-        d = self.pluginCalls['collect'](self.config)
+        ds = self.config.datasources[0]
+        template = ds.template
+        datasource = ds.datasource
+        plugin_classname = ds.plugin_classname
+
+        if plugin_classname in self.blockingPlugins:
+            log.warning(
+                "Task %s is disabled (%s/%s)",
+                self.name,
+                template,
+                datasource)
+
+            return defer.fail(Exception('disabled'))
+
+        with watchdog.timeout(self.blockingTimeout, plugin_classname):
+            d = self.pluginCalls['collect'](self.config)
+
         d.addBoth(self.pluginCalls['onResult'], self.config)
         d.addCallback(self.pluginCalls['onSuccess'], self.config)
         d.addErrback(self.pluginCalls['onError'], self.config)
