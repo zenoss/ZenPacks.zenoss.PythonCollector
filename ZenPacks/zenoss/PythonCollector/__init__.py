@@ -9,6 +9,11 @@
 
 import Globals  # noqa
 
+import logging
+LOG = logging.getLogger('zen.PythonCollector')
+
+import os
+
 from Products.ZenModel.ZenPack import ZenPack as ZenPackBase
 from Products.ZenUtils.Utils import unused
 
@@ -21,6 +26,13 @@ class ZenPack(ZenPackBase):
         app.getDmdRoot('Processes').createOrganizer('Zenoss')
 
         super(ZenPack, self).install(app)
+
+        # zenpython.py must be executable for its optional watchdog to
+        # succesfully restart it.
+        try:
+            os.system('chmod 0755 {}'.format(self.path('zenpython.py')))
+        except Exception as e:
+            LOG.error("failed to make zenpython.py executable: %s", e)
 
 
 # Patch last to avoid import recursion problems.
