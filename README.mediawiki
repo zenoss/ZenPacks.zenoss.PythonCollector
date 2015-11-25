@@ -310,7 +310,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;1.8.0
+;1.7.3 (2015-11-25)
 * Add "blockingtimeout" option to zenpython. (ZEN-19219)
 * Change default "blockingwarning" from 30 to 3 seconds.
 
