@@ -1,5 +1,19 @@
 <?xml version="1.0"?>
 <objects>
+<!-- ('', 'zport', 'dmd', 'Events', 'App', 'Zenoss', 'instances', 'zenpython-datasources-disabled') -->
+<object id='/zport/dmd/Events/App/Zenoss/instances/zenpython-datasources-disabled' module='Products.ZenEvents.EventClassInst' class='EventClassInst'>
+<property type="text" id="transform" mode="w" >
+</property>
+<property type="string" id="eventClassKey" mode="w" >
+zenpython-datasources-disabled
+</property>
+<property type="int" id="sequence" mode="w" >
+1001
+</property>
+<property type="string" id="example" mode="w" >
+Some monitoring for this device has been disabled due to problems detected in the following datasources: TemplateName/datasourceName
+</property>
+</object>
 <!-- ('', 'zport', 'dmd', 'Processes', 'Zenoss', 'osProcessClasses', 'zenpython') -->
 <object id='/zport/dmd/Processes/Zenoss/osProcessClasses/zenpython' module='Products.ZenModel.OSProcessClass' class='OSProcessClass'>
 <property type="string" id="name" mode="w" >

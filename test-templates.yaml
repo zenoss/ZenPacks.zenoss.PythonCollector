@@ -1,4 +1,4 @@
-/Test-PythonCollector:
+/TestPythonCollector:
   description: Tests for PythonCollector.
 
   datasources:
@@ -7,12 +7,76 @@
       cycletime: 10
       plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestSleepMainPlugin
 
+      datapoints:
+        sin: GAUGE_MIN_0_MAX_100
+
+    oversleepMain:
+      type: Python
+      cycletime: 10
+      plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestOversleepMainPlugin
+
+      datapoints:
+        sin: GAUGE_MIN_0_MAX_100
+
     sleepThread:
       type: Python
       cycletime: 10
       plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestSleepThreadPlugin
 
+      datapoints:
+        sin: GAUGE_MIN_0_MAX_100
+
+    oversleepThread:
+      type: Python
+      cycletime: 10
+      plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestOversleepThreadPlugin
+
+      datapoints:
+        sin: GAUGE_MIN_0_MAX_100
+
     sleepAsync:
       type: Python
       cycletime: 10
       plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestSleepAsyncPlugin
+
+      datapoints:
+        sin: GAUGE_MIN_0_MAX_100
+
+    oversleepAsync:
+      type: Python
+      cycletime: 10
+      plugin_classname: ZenPacks.zenoss.PythonCollector.plugins.TestOversleepAsyncPlugin
+
+      datapoints:
+        sin: GAUGE_MIN_0_MAX_100
+
+  graphs:
+    Test Values:
+      units: arbitrary
+      miny: 0
+      maxy: 100
+
+      graphpoints:
+        sleepMain:
+          dpName: sleepMain_sin
+          format: "%5.0lf"
+
+        oversleepMain:
+          dpName: oversleepMain_sin
+          format: "%5.0lf"
+
+        sleepThread:
+          dpName: sleepThread_sin
+          format: "%5.0lf"
+
+        oversleepThread:
+          dpName: oversleepThread_sin
+          format: "%5.0lf"
+
+        sleepAsync:
+          dpName: sleepAsync_sin
+          format: "%5.0lf"
+
+        oversleepAsync:
+          dpName: oversleepAsync_sin
+          format: "%5.0lf"

@@ -9,7 +9,12 @@ This zenpack adds a new ''zenpython'' collector daemon. In most cases there is n
 The following options can be specified in the zenpython configuration file. Typically the default values for these options are appropriate and don't need to be adjusted.
 
 ;blockingwarning
-: The zenpython collector daemon executes plugin code provided by other ZenPacks. If this plugin code blocks for too long it will prevent zenpython from performing other tasks including collecting other datasources while the plugin code is executed. The ''blockingwarning'' option will cause zenpython to log a warning for any plugin code that blocks for the configured number of seconds or more. The default value is 30. Decimal precision such as 0.5 can be used.
+: The zenpython collector daemon executes plugin code provided by other ZenPacks. If this plugin code blocks for too long it will prevent zenpython from performing other tasks including collecting other datasources while the plugin code is executed. The ''blockingwarning'' option will cause zenpython to log a warning for any plugin code that blocks for the configured number of seconds or more. The default value is 3 seconds. Decimal precision such as 3.5 can be used.
+
+;blockingtimeout
+: See ''blockingwarning''. This option will cause zenpython to disable a plugin if it blocks for longer than the number of seconds specified. The zenpython daemon will restart itself after disabling the plugin to get unblocked. Events will be created indicating that some monitoring will not be performed due to disabled plugins on all affected devices. The default value is 5 seconds. Decimal precision such as 5.5 can be used.
+: A blocking plugin likely indicates a problem with the way the plugin was written. The author of the plugin should be contacted if this is seen. Zenoss support should be contacted if the plugin came from Zenoss.
+: Once a plugin is blocked, it will remain permanently blocked until its name is removed from either /var/zenoss/zenpython.blocked on Zenoss 5, or /opt/zenoss/var/zenpython.blocked on Zenoss 4. The zenpython service must be restarted after manual modifications to this file.
 
 ;twistedthreadpoolsize
 : Controls size of threads pool. Datasources can use multi-threading to run multiple requests in parallel. Increasing this value may boost performance at the cost of system memory used. The default value is 10.
@@ -304,6 +309,10 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 </syntaxhighlight>
 
 == Changes ==
+
+;1.7.3 (2015-11-25)
+* Add "blockingtimeout" option to zenpython. (ZEN-19219)
+* Change default "blockingwarning" from 30 to 3 seconds.
 
 ;1.7.2 (2015-08-27)
 * Add "blockingwarning" option to zenpython.
