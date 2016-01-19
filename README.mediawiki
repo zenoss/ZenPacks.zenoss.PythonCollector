@@ -19,6 +19,9 @@ The following options can be specified in the zenpython configuration file. Typi
 ;twistedthreadpoolsize
 : Controls size of threads pool. Datasources can use multi-threading to run multiple requests in parallel. Increasing this value may boost performance at the cost of system memory used. The default value is 10.
 
+;twistedconcurrenthttp
+: Controls the number of total concurrent HTTP connections to be permitted by the twisted.web.client.getPage function.
+
 ;collect
 : Allows only specific plugins to run. This is primarily a developer option to help reduce the noise while developing plugins. The default is to collect all configured plugins. The value for this option is a regular expression. Only plugins which class name matches the regular expression will be run.
 
@@ -309,6 +312,10 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 </syntaxhighlight>
 
 == Changes ==
+
+;1.8.0 (2016-01-19)
+* Add 'twistedconcurrenthttp' option to zenpython
+* Add ZenPacks.zenoss.PythonCollector.web.client.getPage() API
 
 ;1.7.3 (2015-11-25)
 * Add "blockingtimeout" option to zenpython. (ZEN-19219)
