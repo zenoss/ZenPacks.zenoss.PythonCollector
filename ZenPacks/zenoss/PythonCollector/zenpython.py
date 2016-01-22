@@ -71,6 +71,7 @@ from Products.ZenUtils.Utils import unused
 from ZenPacks.zenoss.PythonCollector import watchdog
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
+from ZenPacks.zenoss.PythonCollector.web.semaphores import DEFAULT_TWISTEDCONCURRENTHTTP
 
 try:
     from Products.ZenUtils.Utils import varPath
@@ -83,7 +84,10 @@ except ImportError:
         return zenPath(*all_args)
 
 
-unused(Globals)
+# patch twisted.web.client.getPage
+import ZenPacks.zenoss.PythonCollector.patches.getPage as gp
+
+unused(Globals, gp)
 
 pb.setUnjellyableForClass(PythonDataSourceConfig, PythonDataSourceConfig)
 
@@ -135,6 +139,13 @@ class Preferences(object):
             '--ignore',
             dest='ignorePlugins', default="",
             help="Python plugins to ignore. Takes a regular expression")
+
+        parser.add_option(
+            '--twistedconcurrenthttp',
+            dest='twistedconcurrenthttp',
+            type='int',
+            default=DEFAULT_TWISTEDCONCURRENTHTTP,
+            help="Overall limit of concurrent HTTP connections by all plugins which utilize ZenPacks.zenoss.PythonCollector.web.client.getPage")
 
     def postStartup(self):
         if self.options.ignorePlugins and self.options.collectPlugins:
