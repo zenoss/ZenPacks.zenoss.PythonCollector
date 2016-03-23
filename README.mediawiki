@@ -310,7 +310,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;1.7.4
+;1.7.4 (2016-03-23)
 * Increase default blockingtimeout from 5 to 30 seconds. (ZEN-22632)
 * Enable all plugins if blockingtimeout is set to 0. (ZEN-22633)
 
