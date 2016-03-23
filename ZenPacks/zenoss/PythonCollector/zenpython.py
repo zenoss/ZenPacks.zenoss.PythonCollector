@@ -144,19 +144,21 @@ class Preferences(object):
         self.setupWatchdog()
 
     def setupWatchdog(self):
-        self.blockingPlugins = watchdog.get_timeout_entries(
-            timeout_file=varPath('{}.blocked'.format(self.collectorName)))
-
-        log.info(
-            "plugins disabled by watchdog: %r",
-            list(self.blockingPlugins))
-
         if self.options.blockingTimeout > 0:
+            self.blockingPlugins = watchdog.get_timeout_entries(
+                timeout_file=varPath('{}.blocked'.format(self.collectorName)))
+
+            log.info(
+                "plugins disabled by watchdog: %r",
+                list(self.blockingPlugins))
+
             log.info(
                 "starting watchdog with %.1fs timeout",
                 self.options.blockingTimeout)
 
             watchdog.start()
+        else:
+            self.blockingPlugins = set()
 
 
 class PerDataSourceInstanceTaskSplitter(SubConfigurationTaskSplitter):
