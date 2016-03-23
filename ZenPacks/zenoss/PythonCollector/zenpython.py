@@ -116,7 +116,7 @@ class Preferences(object):
             '--blockingtimeout',
             dest='blockingTimeout',
             type='float',
-            default=5.0,
+            default=30.0,
             help="Disable plugins that block for X seconds")
 
         parser.add_option(
