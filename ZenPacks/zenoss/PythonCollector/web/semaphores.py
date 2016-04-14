@@ -30,7 +30,12 @@ class ExpiringSemaphoreMap(Map.Timed):
             return
         for k, (v, t) in self.map.items():
             # only allow them to expire if they are not being used
-            if t + self.timeout < now and self.map[k].tokens == 0:
+            try:
+                tokens = v.tokens
+            except:
+                log.warning('Invalid token count in map item: '+v)
+                tokens = 0
+            if t + self.timeout < now and tokens == 0:
                 del self.map[k]
         self.lastClean = now
 
