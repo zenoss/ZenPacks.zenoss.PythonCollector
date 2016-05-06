@@ -413,6 +413,10 @@ class PythonCollectionTask(BaseTask):
             # New in 1.3. Now safe to return no results.
             returnValue(None)
 
+        if type(result) == list:
+            for r in result:
+                self.processResults(r)
+
         # New in 1.3. It's OK to not set results events key.
         if 'events' in result:
             yield self.sendEvents(result['events'])
