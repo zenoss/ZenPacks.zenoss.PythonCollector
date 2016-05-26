@@ -107,8 +107,11 @@ class Scenario(object):
         Returns (exitcode, stdout, stderr)
 
         """
+        src_file = __file__
+        if src_file.endswith('.pyc'):
+            src_file = os.path.splitext(__file__)[0]+'.py'
         p = subprocess.Popen(
-            [__file__, '--scenario', scenario],
+            [src_file, '--scenario', scenario],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
 
