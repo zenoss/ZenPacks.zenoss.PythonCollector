@@ -67,7 +67,7 @@ The goal of the ''Python'' data source type is to replicate some of the standard
 
 The ''Python'' data source type is intended to be used in one of two ways. The first way is directly through the creation of Python data sources through the web interface or in a ZenPack. When used in this way, it is the responsibility of the data source creator to implement the required Python class specified in the data source's ''Python Class Name'' property field. The second way the ''Python'' data source can be used is as a base class for another data source type. Used in this way, the ZenPack author will create a subclass of ''PythonDataSource'' to provide a higher-level functionality to the user. The user is then not responsible for writing a Python class to collect and process data.
 
-== Using the Python Data Source Type Directly ==
+=== Using the Python Data Source Type Directly ===
 
 To create a ''Python'' data source directly you should first implement the Python class you'll eventually use for the data source's ''Plugin Class Name''. It is recommended to implement this class in a ZenPack so that it is portable from one Zenoss system to another and differentiates your custom code from Zenoss code.
 
@@ -231,7 +231,7 @@ class MyPlugin(PythonDataSourcePlugin):
         return
 </syntaxhighlight>
 
-== Extending the Python Data Source Type ==
+=== Extending the Python Data Source Type ===
 
 To extend the ''Python'' data source type to create a new data source type you will absolutely need to create a ZenPack to contain your new data source type. Assuming you have a ZenPack named ZenPacks.example.PackName you would create a ZenPacks/example/PackName/datasources/MyDataSource.py file with contents like the following.
 
@@ -311,11 +311,161 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
     pass
 </syntaxhighlight>
 
+=== Updating the Model ===
+
+Usually the job of updating the model is performed by modeler plugins being run by the zenmodeler service. However, it is also possible to perform the same type of model updates with a PythonDataSourcePlugin.
+
+{{warning}} Model updates are much more expensive operations than creating events or collecting datapoints. It is better to perform as much modeling as possible using modeler plugins on their typical 12 hour interval, and perform only the absolutely necessary smaller model updates more frequently using a PythonDataSourcePlugin. Too much modeling activity can result in the degradation of a Zenoss' systems overall performance.
+
+Model data in the form of ''DataMaps'' can be returned from any of the following methods of a PythonDataSourcePlugin.
+
+* ''collect''
+* ''onResult''
+* ''onSuccess''
+* ''onError''
+* ''onComplete''
+
+Which of these you choose to implement will dictate which should return DataMaps. We'll focus on the simple case of only the ''collect'' method being implemented.
+
+The following example demonstrates a ''collect'' method that returns ''maps''. It's ''maps'' that contains a list of DataMaps. A DataMap can be either an ObjectMap or RelationshipMap depending on whether you're intended to update the model of a single object, or an entire relationship of objects.
+
+<syntaxhighlight lang="python">
+from Products.DataCollector.plugins.DataMaps import ObjectMap, RelationshipMap
+
+from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource import PythonDataSourcePlugin
+
+
+class MyDataSourcePlugin(PythonDataSourcePlugin):
+    def collect(self, config):
+        return {
+            'maps': [
+
+                # An ObjectMap with no compname or relname will be
+                # applied to the device.
+                ObjectMap({'rackSlot': 'near-the-top'}),
+
+                # An ObjectMap with a compname, but no relname will be
+                # applied to a static object that's always a child of the
+                # device. For example: hw and os.
+                ObjectMap({
+                    'compname': 'hw',
+                    'totalMemory': 45097156608}),
+
+                # An ObjectMap with an id, relname, and modname will be
+                # applied to a component of the device. The component's
+                # properties will be updated if the component already exists,
+                # and the the component will be created if it doesn't already
+                # exist.
+                ObjectMap({
+                    'id': 'widgetbag-x7',
+                    'relname': 'widgetbags',
+                    'modname': 'ZenPacks.example.PackName.WidgetBag',
+                    'shape': 'squiggle',
+                    }),
+
+                # Components nested beneath other components can be updated
+                # by using both compname to identify the relative path to the
+                # parent component from its device, and relname to identify
+                # the relationship on the parent component.
+                ObjectMap({
+                    'id': 'widget-z9',
+                    'compname': 'widgetbags/widgetbag-x7',
+                    'relname': 'widgets',
+                    'modname': 'ZenPacks.example.PackName.Widget',
+                    'color': 'magenta',
+                    })
+
+                # A special _add key can be added to an ObjectMap's data to
+                # control whether or not the component will be added if it
+                # doesn't already exist. The default value for _add is True
+                # which will result in the component being created if it
+                # doesn't already exist. Setting _add's value to False will
+                # cause nothing to happen if the component doesn't already
+                # exist. Sometimes this is desirable if you intend to have a
+                # modeler plugin perform all component additions with your
+                # datasource plugin only updating existing components.
+                ObjectMap({
+                    'id': 'widgetbag-x7',
+                    'relname': 'widgetbags',
+                    'modname': 'ZenPacks.example.PackName.WidgetBag',
+                    'shape': 'crescent',
+                    '_add': False,
+                    }),
+
+                # A special _remove key can be added to an ObjectMap's data
+                # to cause the identified component to be deleted. If a
+                # matching component is not found, nothing will happen. The
+                # default value for the _remove key is False. There's no
+                # reason to set anything other than relname, optionally
+                # compname, and id within data when setting _remove to True.
+                # Matching is performed by joining compname/relname/id to
+                # create a relative path to the component to be removed.
+                ObjectMap({
+                    'id': 'widgetbag-x7',
+                    'relname': 'widgetbags',
+                    'modname': 'ZenPacks.example.PackName.WidgetBag',
+                    '_remove': True,
+                    }),
+
+                # A RelationshipMap is used to update all of the components
+                # in the specified relationship. A RelationshipMap must
+                # supply an ObjectMap for each component in the relationship.
+                # Any existing components that don't have a matching (by id)
+                # ObjectMap within the RelationshipMap will be removed when
+                # the RelationshipMap is applied.
+                RelationshipMap(
+                    relname='widgetbags',
+                    modname='ZenPacks.zenoss.PackName.WidgetBag',
+                    objmaps=[
+                        ObjectMap({'id': 'widgetbag-x7', 'shape': 'square'}),
+                        ObjectMap({'id': 'widgetbag-y8', 'shape': 'hole'}),
+                        ]),
+
+                # As with ObjectMaps, compname can be used to update
+                # relationships on components rather than relationships on
+                # the device. These are often referred to as nested
+                # components, or nested relationships.
+                RelationshipMap(
+                    compname='widgetbags/widgetbag-x7',
+                    relname='widgets',
+                    modname='ZenPacks.zenoss.PackName.Widget',
+                    objmaps=[
+                        ObjectMap({'id': 'widget-z9', 'color': 'magenta'}),
+                        ObjectMap({'id': 'widget-aa10', 'color': 'cyan'}),
+                        ]),
+
+                # Note that in this case because there are two "widgets"
+                # relationships (one for each widgetbag), there must be two
+                # RelationshipMaps to model them.
+                RelationshipMap(
+                    compname='widgetbags/widgetbag-y8',
+                    relname='widgets',
+                    modname='ZenPacks.zenoss.PackName.Widget',
+                    objmaps=[
+                        ObjectMap({'id': 'widget-bb11', 'color': 'green'}),
+                        ObjectMap({'id': 'widget-bb12', 'color': 'yellow'}),
+                        ]),
+
+                # All of the components in a relationship will be removed if
+                # a RelationshipMap with an empty list of ObjectMaps
+                # (objmaps) is supplied.
+                RelationshipMap(
+                    relname='widgetbags',
+                    modname='ZenPacks.zenoss.PackName.WidgetBag',
+                    objmaps=[])
+
+                ]
+            }
+</syntaxhighlight
+
 == Changes ==
 
 ;1.8.0
 * Add 'twistedconcurrenthttp' option to zenpython
 * Add ZenPacks.zenoss.PythonCollector.web.client.getPage() API
+* Support optional _add property in naked ObjectMaps.
+* Support optional _remove property in naked ObjectMaps.
+* Document modeling from datasource plugins.
 
 ;1.7.4 (2016-03-23)
 * Increase default blockingtimeout from 5 to 30 seconds. (ZEN-22632)
