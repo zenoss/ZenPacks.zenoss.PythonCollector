@@ -42,10 +42,25 @@ def _updateRelationship(self, device, relmap):
     # @transact decorator so side-effects must be avoided.
     objmap = copy.deepcopy(relmap)
 
-    remove = getattr(objmap, 'remove', False) is True
+    # Should the object described by objmap be created?
+    if hasattr(objmap, '_add'):
+        add = bool(objmap._add)
+        del(objmap._add)
+    else:
+        add = True
+
+    # Should the object described by objmap be deleted?
+    remove = False
+
     if hasattr(objmap, 'remove'):
+        remove = bool(objmap.remove)
         del(objmap.remove)
 
+    if hasattr(objmap, '_remove'):
+        remove = bool(objmap._remove)
+        del(objmap._remove)
+
+    # Find the relationship indicated by the ObjectMap.
     relname = getattr(objmap, 'relname', None)
     if hasattr(objmap, 'relname'):
         del(objmap.relname)
@@ -61,11 +76,17 @@ def _updateRelationship(self, device, relmap):
     if obj:
         return self._updateObject(obj, objmap)
 
-    self._createRelObject(device, objmap, relname)[0]
+    if add:
+        self._createRelObject(device, objmap, relname)
 
-    # If we get here it means we created a new object. So we must return
-    # true so the caller knows that a change in the model has occured.
-    return True
+        # If we get here it means we created a new object. So we must
+        # return true so the caller knows that a change in the model has
+        # occured.
+        return True
+
+    # If we get here it means we couldn't find an object to update, and
+    # we were told not to add objects. So no change was made.
+    return False
 
 
 @monkeypatch('Products.DataCollector.ApplyDataMap.ApplyDataMap')
