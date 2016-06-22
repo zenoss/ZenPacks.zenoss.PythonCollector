@@ -460,7 +460,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
-;1.8.0
+;1.8.0 (2016-06-22)
 * Add 'twistedconcurrenthttp' option to zenpython
 * Add ZenPacks.zenoss.PythonCollector.web.client.getPage() API
 * Support optional _add property in naked ObjectMaps.
