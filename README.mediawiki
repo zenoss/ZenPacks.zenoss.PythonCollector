@@ -315,7 +315,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 Usually the job of updating the model is performed by modeler plugins being run by the zenmodeler service. However, it is also possible to perform the same type of model updates with a PythonDataSourcePlugin.
 
-{{warning}} Model updates are much more expensive operations than creating events or collecting datapoints. It is better to perform as much modeling as possible using modeler plugins on their typical 12 hour interval, and perform only the absolutely necessary smaller model updates more frequently using a PythonDataSourcePlugin. Too much modeling activity can result in the degradation of a Zenoss' systems overall performance.
+{{note}} Model updates are much more expensive operations than creating events or collecting datapoints. It is better to perform as much modeling as possible using modeler plugins on their typical 12 hour interval, and perform only the absolutely necessary smaller model updates more frequently using a PythonDataSourcePlugin. Too much modeling activity can result in the degradation of a Zenoss' systems overall performance.
 
 Model data in the form of ''DataMaps'' can be returned from any of the following methods of a PythonDataSourcePlugin.
 
@@ -456,7 +456,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
                 ]
             }
-</syntaxhighlight
+</syntaxhighlight>
 
 == Changes ==
 
