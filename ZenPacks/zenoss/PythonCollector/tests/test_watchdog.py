@@ -14,6 +14,7 @@ import Globals  # NOQA: imported for side effects.
 
 import argparse
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -101,14 +102,24 @@ class Scenario(object):
     """
 
     @staticmethod
+    def ensure_runnable(file):
+        st = os.stat(file)
+        xa = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+        os.chmod(file, st.st_mode | xa)
+
+    @staticmethod
     def run(scenario, seconds=5):
         """Run named scenario in another process. Kill it after seconds.
 
         Returns (exitcode, stdout, stderr)
 
         """
+        src_file = __file__
+        if src_file.endswith('.pyc'):
+            src_file = os.path.splitext(__file__)[0]+'.py'
+        Scenario.ensure_runnable(src_file)
         p = subprocess.Popen(
-            [__file__, '--scenario', scenario],
+            [src_file, '--scenario', scenario],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
 
