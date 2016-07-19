@@ -93,7 +93,7 @@ class PythonDataSource(ZenPackPersistence, RRDDataSource):
 
         try:
             params = self.getPluginClass().params(self, context)
-        except AttributeError:
+        except Exception:
             params = {}
         return params
 
