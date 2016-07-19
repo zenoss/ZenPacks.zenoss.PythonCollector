@@ -91,7 +91,11 @@ class PythonDataSource(ZenPackPersistence, RRDDataSource):
         if not self.plugin_classname:
             return {}
 
-        return self.getPluginClass().params(self, context)
+        try:
+            params = self.getPluginClass().params(self, context)
+        except Exception:
+            params = {}
+        return params
 
 
 class IPythonDataSourceInfo(IRRDDataSourceInfo):
