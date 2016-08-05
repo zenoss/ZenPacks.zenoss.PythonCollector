@@ -225,12 +225,15 @@ class PythonConfig(CollectorConfigService):
         return result
 
     def remote_applyDataMaps(self, device, datamaps):
-        device = self.getPerformanceMonitor().findDevice(device)
+        device_obj = self.getPerformanceMonitor().findDevice(device)
+        if device_obj is None:
+            log.warn("Device '%s' no longer exists. Discarding pending datamaps." % device)
+            return False
         applicator = ApplyDataMap(self)
 
         changed = False
         for datamap in datamaps:
-            if applicator._applyDataMap(device, datamap):
+            if applicator._applyDataMap(device_obj, datamap):
                 changed = True
 
         return changed
