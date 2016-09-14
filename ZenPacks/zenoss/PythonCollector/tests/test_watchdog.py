@@ -108,7 +108,7 @@ class Scenario(object):
         os.chmod(file, st.st_mode | xa)
 
     @staticmethod
-    def run(scenario, seconds=5):
+    def run(scenario, seconds=10):
         """Run named scenario in another process. Kill it after seconds.
 
         Returns (exitcode, stdout, stderr)
