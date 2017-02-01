@@ -196,7 +196,12 @@ class MyPlugin(PythonDataSourcePlugin):
             'maps': [
                 ObjectMap(...),
                 RelationshipMap(..),
-                ]
+                ],
+
+            # Optional attribute, in most cases it's used when you want to change
+            # the execution interval of a task during the data collection.
+            'interval': 300,
+
             }
 
     def onError(self, result, config):
@@ -459,6 +464,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 </syntaxhighlight>
 
 == Changes ==
+
+;1.9.0
+* Add support of change the execution interval for a started task. (ZPS-70)
 
 ;1.8.1 (2016-07-19)
 * Fix total collection failure when one bad config exists. (ZEN-23167)
