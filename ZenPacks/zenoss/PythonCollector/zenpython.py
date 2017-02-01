@@ -430,6 +430,12 @@ class PythonCollectionTask(BaseTask):
             if d and not self.cycling:
                 yield d
 
+        # New in 1.9.0. Will change task's interval once set.
+        if 'interval' in result:
+            interval = int(result['interval'])
+            if interval != self.interval:
+                self.interval = interval
+
     @inlineCallbacks
     def sendEvents(self, events):
         if not events:
