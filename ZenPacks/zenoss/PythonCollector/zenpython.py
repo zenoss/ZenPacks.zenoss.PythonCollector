@@ -538,7 +538,7 @@ class PythonCollectionTask(BaseTask):
 
     def handleError(self, result):
         if isinstance(result, Failure):
-            error = result.value
+            error = result.getTraceback()
         else:
             error = result
 
