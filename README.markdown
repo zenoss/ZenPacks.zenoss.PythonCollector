@@ -1,1 +1,3 @@
-Documentation can be found [on the Zenoss wiki](http://wiki.zenoss.org/ZenPack:PythonCollector).
+# ZenPacks.zenoss.PythonCollector
+
+https://www.zenoss.com/product/zenpacks/pythoncollector
