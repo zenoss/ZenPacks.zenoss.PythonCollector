@@ -467,6 +467,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 ;1.9.0
 * Add support of change the execution interval for a started task. (ZPS-70)
+* Fix traceback when applying datamaps to deleted devices. (ZEN-24056)
 
 ;1.8.1 (2016-07-19)
 * Fix total collection failure when one bad config exists. (ZEN-23167)
