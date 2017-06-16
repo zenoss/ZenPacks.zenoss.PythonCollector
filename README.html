@@ -129,6 +129,9 @@ dd {
     <dd>A blocking plugin likely indicates a problem with the way the plugin was written. The author of the plugin should be contacted if this is seen. Zenoss support should be contacted if the plugin came from Zenoss.</dd>
     <dd>Once a plugin is blocked, it will remain permanently blocked until its name is removed from either /var/zenoss/zenpython.blocked on Zenoss 5, or /opt/zenoss/var/zenpython.blocked on Zenoss 4. The zenpython service must be restarted after manual modifications to this file.</dd>
 
+    <dt>runningtimeout</dt>
+    <dd>Timeout datasource collection that exceeds (runningtimeout * cycletime) seconds. The default value is 3 cycles. Decimal precision such as 3.5 can be used. A 0 value will disable datasource timeouts as was the case in PythonCollector versions earlier than 1.10.0.</dd>
+
     <dt>twistedthreadpoolsize</dt>
     <dd>Controls size of threads pool. Datasources can use multi-threading to run multiple requests in parallel. Increasing this value may boost performance at the cost of system memory used. The default value is 10.</dd>
 
@@ -165,6 +168,7 @@ dd {
 
 <ul>
     <li><i>percentBlocked</i>: Percent of the time blocked by plugin code execution.</li>
+    <li><i>timedOutTasks</i>: Tasks timed out by <i>runningtimeout</i> per second.</li>
 </ul>
 
 <h4 id="task-statistics">Task Statistics</h4>
@@ -580,6 +584,13 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 </code></pre>
 
 <h2 id="changes">Changes</h2>
+
+<h3 id=""changes-1.10.0">1.10.0</h3>
+<ul>
+    <li>Add "runningtimeout" option to zenpython. (ZPS-1675)</li>
+    <li>Timeout datasources that stay running for triple their cycletime. (ZPS-1675)</li>
+    <li>Add "timedOutTasks" metric to zenpython. (ZPS-1675)</li>
+</ul>
 
 <h3 id="changes-1.9.0">1.9.0</h3>
 <ul>
