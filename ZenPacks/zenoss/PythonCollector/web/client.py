@@ -15,6 +15,7 @@ from twisted.internet.error import DNSLookupError
 from twisted.web import http, client as txwebclient
 from urlparse import urlunparse
 from .semaphores import getOverallDeferredSemaphore, getKeyedDeferredSemaphore
+from .. import twisted_utils
 
 log = logging.getLogger('zen.python.web.client')
 
@@ -160,11 +161,6 @@ def getPage(url, return_headers=False, concurrent_key=None, concurrent_limit=Non
 
     factory = ProxyWebClient(url, return_headers=return_headers)
 
-    def sleep(secs):
-        d = defer.Deferred()
-        reactor.callLater(secs, d.callback, None)
-        return d
-
     # Incremental backoff
     for retry in xrange(max_retries + 1):
         if retry > 0:
@@ -173,7 +169,7 @@ def getPage(url, return_headers=False, concurrent_key=None, concurrent_limit=Non
                 '%s retry %s backoff is %s seconds',
                 description, retry, delay)
 
-            yield sleep(delay)
+            yield twisted_utils.sleep(delay)
 
         try:
             def get_page():

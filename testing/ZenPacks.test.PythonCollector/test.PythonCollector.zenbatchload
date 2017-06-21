@@ -1,0 +1,11 @@
+/Devices/Test/PythonCollector
+test-PythonCollector-0 setManageIp='127.1.2.0'
+test-PythonCollector-1 setManageIp='127.1.2.1'
+test-PythonCollector-2 setManageIp='127.1.2.2'
+test-PythonCollector-3 setManageIp='127.1.2.3'
+test-PythonCollector-4 setManageIp='127.1.2.4'
+test-PythonCollector-5 setManageIp='127.1.2.5'
+test-PythonCollector-6 setManageIp='127.1.2.6'
+test-PythonCollector-7 setManageIp='127.1.2.7'
+test-PythonCollector-8 setManageIp='127.1.2.8'
+test-PythonCollector-9 setManageIp='127.1.2.9'

@@ -14,6 +14,20 @@ zenpython-datasources-disabled
 Some monitoring for this device has been disabled due to problems detected in the following datasources: TemplateName/datasourceName
 </property>
 </object>
+<!-- ('', 'zport', 'dmd', 'Events', 'App', 'Zenoss', 'instances', 'zenpython-timeout') -->
+<object id='/zport/dmd/Events/App/Zenoss/instances/zenpython-timeout' module='Products.ZenEvents.EventClassInst' class='EventClassInst'>
+<property type="text" id="transform" mode="w" >
+</property>
+<property type="string" id="eventClassKey" mode="w" >
+zenpython-timeout
+</property>
+<property type="int" id="sequence" mode="w" >
+1001
+</property>
+<property type="string" id="example" mode="w" >
+timeout collecting example datasource for multiple components
+</property>
+</object>
 <!-- ('', 'zport', 'dmd', 'Processes', 'Zenoss', 'osProcessClasses', 'zenpython') -->
 <object id='/zport/dmd/Processes/Zenoss/osProcessClasses/zenpython' module='Products.ZenModel.OSProcessClass' class='OSProcessClass'>
 <property type="string" id="name" mode="w" >
