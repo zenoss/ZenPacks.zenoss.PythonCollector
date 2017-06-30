@@ -2,30 +2,21 @@
 # These variables are overwritten by Zenoss when the ZenPack is exported
 # or saved.  Do not modify them directly here.
 # NB: PACKAGES is deprecated
-NAME = "ZenPacks.zenoss.PythonCollector"
-VERSION = "1.10.0"
-AUTHOR = "Zenoss"
-LICENSE = "All Rights Reserved"
-NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.zenoss']
-PACKAGES = ['ZenPacks', 'ZenPacks.zenoss', 'ZenPacks.zenoss.PythonCollector']
-INSTALL_REQUIRES = []
-COMPAT_ZENOSS_VERS = ">=4.2"
+NAME = "ZenPacks.test.PythonCollector"
+VERSION = "1.0.0dev"
+AUTHOR = "Your Name Here"
+LICENSE = ""
+NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.test']
+PACKAGES = ['ZenPacks', 'ZenPacks.test', 'ZenPacks.test.PythonCollector']
+INSTALL_REQUIRES = ['ZenPacks.zenoss.ZenPackLib', 'ZenPacks.zenoss.PythonCollector']
+COMPAT_ZENOSS_VERS = ""
 PREV_ZENPACK_NAME = ""
 # STOP_REPLACEMENTS
 ################################
 # Zenoss will not overwrite any changes you make below here.
 
-import os
-from subprocess import Popen, PIPE
 from setuptools import setup, find_packages
 
-# Run "make build" if a GNUmakefile is present.
-if os.path.isfile('GNUmakefile'):
-    print 'GNUmakefile found. Running "make build" ..'
-    p = Popen('make build', stdout=PIPE, stderr=PIPE, shell=True)
-    print p.communicate()[0]
-    if p.returncode != 0:
-        raise Exception('"make build" exited with an error: %s' % p.returncode)
 
 setup(
     # This ZenPack metadata should usually be edited with the Zenoss
@@ -55,10 +46,6 @@ setup(
     # Tell setuptools to figure out for itself which files to include
     # in the binary egg when it is built.
     include_package_data=True,
-
-    # The MANIFEST.in file is the recommended way of including additional files
-    # in your ZenPack. package_data is another.
-    # package_data = {}
 
     # Indicate dependencies on other python modules or ZenPacks.  This line
     # is modified by zenoss when the ZenPack edit page is submitted.  Zenoss

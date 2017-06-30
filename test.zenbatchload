@@ -1,2 +1,0 @@
-/Devices
-test-zenpython setManageIp='127.1.2.3', zDeviceTemplates=['Test-PythonCollector']

@@ -68,6 +68,7 @@ from Products.ZenCollector.tasks import (
 from Products.ZenEvents import ZenEventClasses
 from Products.ZenUtils.Utils import unused
 
+from ZenPacks.zenoss.PythonCollector import twisted_utils
 from ZenPacks.zenoss.PythonCollector import watchdog
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
@@ -99,6 +100,10 @@ else:
     WRITERRD_ARGS = {}
 
 
+# eventClassKey for RUNNING timeout events.
+EVENTCLASSKEY_TIMEOUT = "zenpython-timeout"
+
+
 class Preferences(object):
     zope.interface.implements(ICollectorPreferences)
 
@@ -122,6 +127,13 @@ class Preferences(object):
             type='float',
             default=30.0,
             help="Disable plugins that block for X seconds")
+
+        parser.add_option(
+            '--runningtimeout',
+            dest='runningTimeout',
+            type='float',
+            default=3.0,
+            help="Timeout plugins that run for cycletime * runningtimeout")
 
         parser.add_option(
             '--twistedthreadpoolsize',
@@ -304,13 +316,30 @@ class PythonCollectionTask(BaseTask):
         # amount of time they block should be very small. However, code
         # is code and we can't guarantee that it's asynchronous. So we
         # measure it instead.
+        self.percentBlocked = self.getStatistic('percentBlocked', 'COUNTER')
+
+        # New in 1.10.0: Timeout plugin collect methods that stay RUNNING for
+        # too long.
+        self.runningTimeout = self._preferences.options.runningTimeout
+        self.timeoutEvent = self.initializeTimeoutEvent()
+        self.timeoutEventSeverity = self.getMaximumSeverity()
+
+        # New in 1.10.0: Track the number of tasks timed out by runningtimeout.
+        self.timedOutTasks = self.getStatistic('timedOutTasks', 'COUNTER')
+
+    def getStatistic(self, name, type_):
+        """Return statistic. It will be added first if necessary."""
         try:
-            self._statsService.addStatistic('percentBlocked', 'COUNTER')
+            self._statsService.addStatistic(name, type_)
         except NameError:
             # NameError means the statistic already exists.
             pass
 
-        self.percentBlocked = self._statsService.getStatistic('percentBlocked')
+        return self._statsService.getStatistic(name)
+
+    def getMaximumSeverity(self):
+        """Return maximum severity of all datasources in our config."""
+        return max(x.severity for x in self.config.datasources)
 
     def initializePlugin(self):
         """Return initialized PythonDataSourcePlugin for this task."""
@@ -374,6 +403,40 @@ class PythonCollectionTask(BaseTask):
 
         return __wrapper
 
+    def initializeTimeoutEvent(self):
+        """Return base timeout event used for timeouts and clears."""
+        components = set(x.component for x in self.config.datasources)
+        components_c = ",".join(x for x in sorted(components) if x is not None)
+
+        datasources = set(x.datasource for x in self.config.datasources)
+        datasources_c = ",".join(sorted(datasources))
+
+        # Friendly components portion of event's summary.
+        if len(components) > 1:
+            component = ""
+            components_s = " for multiple components"
+        else:
+            component = next(iter(components))
+            components_s = ""
+
+        # Friendly datasources portion of event's summary.
+        if len(datasources) > 1:
+            datasources_s = "multiple datasources"
+        else:
+            datasources_s = "{} datasource".format(next(iter(datasources)))
+
+        event = {
+            'component': component,
+            'components': components_c,
+            'datasources': datasources_c,
+            'eventClassKey': EVENTCLASSKEY_TIMEOUT,
+            'eventKey': "{}|{}".format(EVENTCLASSKEY_TIMEOUT, self.name),
+            'summary': "timeout collecting {}{}".format(
+                datasources_s, components_s),
+        }
+
+        return event
+
     def doTask(self):
         """Collect a single PythonDataSource."""
         ds = self.config.datasources[0]
@@ -381,6 +444,7 @@ class PythonCollectionTask(BaseTask):
         datasource = ds.datasource
         plugin_classname = ds.plugin_classname
 
+        # Prevent disabled plugins (due to BLOCKING) from running.
         if plugin_classname in self.blockingPlugins:
             log.warning(
                 "Task %s is disabled (%s/%s)",
@@ -390,15 +454,34 @@ class PythonCollectionTask(BaseTask):
 
             return defer.fail(Exception('disabled'))
 
+        # Guard against plugin's collect method BLOCKING for too long.
         with watchdog.timeout(self.blockingTimeout, plugin_classname):
             d = self.pluginCalls['collect'](self.config)
 
+        # Guard against plugin's collect method RUNNING for too long.
+        if self.runningTimeout:
+            d = twisted_utils.add_timeout(
+                d,
+                ds.cycletime * self.runningTimeout,
+                exception_class=RunningTimeoutError)
+
+        # Allow the plugin to handle results from it's collect method.
         d.addBoth(self.pluginCalls['onResult'], self.config)
         d.addCallback(self.pluginCalls['onSuccess'], self.config)
         d.addErrback(self.pluginCalls['onError'], self.config)
         d.addBoth(self.pluginCalls['onComplete'], self.config)
+
+        # Have zenpython handle RunningTimeoutError if the plugin doesn't.
+        if self.runningTimeout:
+            d.addBoth(self.handleTimeout)
+
+        # Have zenpython process the results: events, values, maps.
         d.addCallback(self.processResults)
+
+        # Have zenpython handle any errors not handled by the plugin.
         d.addErrback(self.handleError)
+
+        # Return Deferred to the collector framework.
         return d
 
     def cleanup(self):
@@ -406,6 +489,32 @@ class PythonCollectionTask(BaseTask):
             return self.pluginCalls['cleanup'](self.config)
         except Exception as e:
             return self.handleError(e)
+
+    def handleTimeout(self, result):
+        if isinstance(result, Failure):
+            if isinstance(result.value, RunningTimeoutError):
+                self.timedOutTasks.value += 1
+
+                # Return a timeout event.
+                return {'events': [self.getTimeoutEvent(clear=False)]}
+        else:
+            # Add timeout clear event to plugin's events.
+            if result is None:
+                result = {}
+
+            if 'events' not in result:
+                result['events'] = []
+
+            result['events'].append(self.getTimeoutEvent(clear=True))
+
+        # Propagate any other failure or success.
+        return result
+
+    def getTimeoutEvent(self, clear=False):
+        """Return a timeout or timeout clear event."""
+        return dict(
+            severity=0 if clear else self.timeoutEventSeverity,
+            **self.timeoutEvent)
 
     @inlineCallbacks
     def processResults(self, result):
@@ -543,6 +652,10 @@ class PythonCollectionTask(BaseTask):
             error = result
 
         log.error('%s unhandled plugin error: %s', self.name, error)
+
+
+class RunningTimeoutError(Exception):
+    """Plugin stayed in RUNNING state for too long."""
 
 
 def main():

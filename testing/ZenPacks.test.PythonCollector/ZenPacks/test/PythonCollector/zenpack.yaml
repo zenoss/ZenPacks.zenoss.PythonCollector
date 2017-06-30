@@ -1,0 +1,167 @@
+name: ZenPacks.test.PythonCollector
+
+
+zProperties:
+  DEFAULTS:
+    category: Test PythonCollector
+
+  zTestPythonCollectorComponents:
+    type: int
+    default: 50
+
+
+classes:
+  PythonCollectorDevice:
+    base: [zenpacklib.Device]
+
+  PythonCollectorComponent:
+    base: [zenpacklib.Component]
+
+
+class_relationships:
+  - PythonCollectorDevice 1:MC PythonCollectorComponent
+
+
+device_classes:
+  /Test/PythonCollector:
+    remove: true
+
+    zProperties:
+      zPythonClass: ZenPacks.test.PythonCollector.PythonCollectorDevice
+
+      zCollectorPlugins:
+        - test.PythonCollector
+
+      zDeviceTemplates:
+        - PythonCollectorDevice
+
+    templates:
+      PythonCollectorDevice:
+        targetPythonClass: ZenPacks.test.PythonCollector.PythonCollectorDevice
+
+        datasources:
+          sleep:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestSleepAsyncPlugin
+            component: ""
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+          oversleep:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestOversleepAsyncPlugin
+            component: ""
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+          dirtnap:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestDirtnapAsyncPerDevicePlugin
+            component: ""
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+          flaky:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestPeriodicTimeoutPerDevicePlugin
+            component: ""
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+        graphs:
+          Waves:
+            units: height
+            miny: 0
+            maxy: 100
+
+            graphpoints:
+              sleep:
+                dpName: sleep_sin
+
+              oversleep:
+                dpName: oversleep_sin
+
+              dirtnap:
+                dpName: dirtnap_sin
+
+              flaky:
+                dpName: flaky_sin
+
+      PythonCollectorComponent:
+        targetPythonClass: ZenPacks.test.PythonCollector.PythonCollectorComponent
+
+        datasources:
+          sleep:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestSleepAsyncPlugin
+            component: "${here/id}"
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+          oversleep:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestOversleepAsyncPlugin
+            component: "${here/id}"
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+          dirtnap:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestDirtnapAsyncPerComponentPlugin
+            component: "${here/id}"
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+          flakyd:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestPeriodicTimeoutPerDevicePlugin
+            component: ""
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+          flakyc:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestPeriodicTimeoutPerComponentPlugin
+            component: ""
+            cycletime: "10"
+
+            datapoints:
+              sin: GAUGE
+
+        graphs:
+          Waves:
+            units: height
+            miny: 0
+            maxy: 100
+
+            graphpoints:
+              sleep:
+                dpName: sleep_sin
+
+              oversleep:
+                dpName: oversleep_sin
+
+              dirtnap:
+                dpName: dirtnap_sin
+
+              flakyd:
+                dpName: flakyd_sin
+
+              flakyc:
+                dpName: flakyc_sin
