@@ -469,6 +469,9 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 
 == Changes ==
 
+;1.10.1
+* Fix RunningTimeoutError occurring instead of proper error. (ZPS-1755)
+
 ;1.10.0
 * Add "runningtimeout" option to zenpython. (ZPS-1675)
 * Timeout datasources that stay running for triple their cycletime. (ZPS-1675)
