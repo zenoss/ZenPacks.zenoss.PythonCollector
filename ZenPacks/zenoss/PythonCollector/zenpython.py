@@ -657,6 +657,9 @@ class PythonCollectionTask(BaseTask):
 class RunningTimeoutError(Exception):
     """Plugin stayed in RUNNING state for too long."""
 
+    def __str__(self):
+        return "running timeout"
+
 
 def main():
     preferences = Preferences()
