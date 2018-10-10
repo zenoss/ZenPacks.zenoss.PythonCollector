@@ -1,5 +1,5 @@
 <style>
-div.thumbnail {
+#doc-container div.thumbnail {
     clear: right;
     float: right;
     margin: 0 0 10px 10px;
@@ -9,19 +9,34 @@ div.thumbnail {
     font-style: italic;
 }
 
-br.clear {
+#doc-container br.clear {
     clear: right;
 }
 
-dd {
+#doc-container dd {
     font-size: smaller;
 }
+
+#doc-container ul.properties {
+    font-size: smaller;
+    list-style-type: none;
+    margin: 10px 0 10px 0;
+    padding: 0;
+}
 </style>
+
+<div id="doc-container">
 
 <h1 id="title">PythonCollector ZenPack</h1>
 <p>Adds a "Python" data source type for asynchronous collection using a custom Python module.</p>
 
+<h2 id="background">Background</h2>
+<p>This ZenPack provides a new <i>Python</i> data source type. It also provides a new <i>zenpython</i> collector daemon that is responsible for collecting these data sources.</p>
+
+<p>[zenoss-toc]</p>
+
 <h2 id="releases">Releases</h2>
+
 <dl id=release-1.10.0">
     <dt>Version 1.10.0 <a class="external" href="http://wiki.zenoss.org/download/zenpacks/ZenPacks.zenoss.PythonCollector/1.10.0/ZenPacks.zenoss.PythonCollector-1.10.0.egg" rel="nofollow">Download</a></dt>
     <dd>Released: 2017-06-30</dd>
@@ -98,28 +113,6 @@ dd {
     <dd>Compatible with Zenoss 4.1 - 4.2</dd>
     <dd>No additional requirements.</dd>
 </dl>
-
-<h2 id="contents">Contents</h2>
-<ol>
-    <li><a href="#background">Background</a></li>
-    <li><a href="#usage">Usage</a>
-        <ol>
-            <li><a href="#zenpython-configuration-options">ZenPython Configuration Options</a></li>
-            <li><a href="#zenpython-statistics">ZenPython Statistics</a></li>
-        </ol>
-    </li>
-    <li><a href="#developing-plugins">Developing Plugins</a>
-        <ol>
-            <li><a href="#using-the-python-data-source-type-directly">Using the Python Data Source Type Directly</a></li>
-            <li><a href="#extending-the-python-data-source-type">Extending the Python Data Source Type</a></li>
-            <li><a href="#updating-the-model">Updating the Model</a></li>
-        </ol>
-    </li>
-    <li><a href="#changes">Changes</a></li>
-</ol>
-
-<h2 id="background">Background</h2>
-<p>This ZenPack provides a new <i>Python</i> data source type. It also provides a new <i>zenpython</i> collector daemon that is responsible for collecting these data sources.</p>
 
 <h2 id="usage">Usage</h2>
 <p>This zenpack adds a new <i>zenpython</i> collector daemon. In most cases there is nothing you need to know about to make use of this additional collector functionality. The following sections describe available configuration, troubleshooting and tuning information.</p>
@@ -745,3 +738,5 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 <ul>
     <li>Initial release.</li>
 </ul>
+
+</div> <!-- end #doc-container -->
