@@ -24,7 +24,7 @@ from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
 
 
 known_point_properties = (
-    'isrow', 'rrdmax', 'description', 'rrdmin', 'rrdtype', 'createCmd')
+    'isrow', 'rrdmax', 'description', 'rrdmin', 'rrdtype', 'createCmd', 'tags')
 
 
 class PythonDataSourceConfig(pb.Copyable, pb.RemoteCopy):
@@ -126,6 +126,12 @@ class PythonConfig(CollectorConfigService):
                     # MetricMixin.getMetricMetadata() added in Zenoss 5.
                     if hasattr(deviceOrComponent, 'getMetricMetadata'):
                         dp_config.metadata = deviceOrComponent.getMetricMetadata()
+
+                    # Support for RRDDataPoint.tags added in Zenoss 7.
+                    if hasattr(dp, "getTags"):
+                        dp_config.tags = dp.getTags(deviceOrComponent)
+                    else:
+                        dp_config.tags = {}
 
                     # Attach unknown properties to the dp_config
                     for key in dp.propdict().keys():
