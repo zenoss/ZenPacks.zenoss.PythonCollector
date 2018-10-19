@@ -14,7 +14,10 @@ import logging
 import math
 import time
 
-from twisted.internet import defer, reactor, threads
+from twisted.internet import defer, threads
+from twisted.internet.task import LoopingCall
+
+from Products.DataCollector.plugins.DataMaps import ObjectMap
 
 from ZenPacks.zenoss.PythonCollector import twisted_utils
 from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource import PythonDataSourcePlugin
@@ -35,6 +38,7 @@ class BaseTestPlugin(PythonDataSourcePlugin):
     offset = (SINE_LENGTH / 11)
 
     def __init__(self, config):
+        super(BaseTestPlugin, self).__init__(config)
         self.config = config
         self.datasource = config.datasources[0].datasource
         self.cycletime = config.datasources[0].cycletime
@@ -225,3 +229,79 @@ class TestPeriodicTimeoutPerComponentPlugin(PerComponentTestPlugin):
             self.cycletime * 4 if should_timeout else self.cycletime / 2)
 
         defer.returnValue(self.get_data())
+
+
+class TestReturnedDataPlugin(PerDeviceTestPlugin):
+    """Plugin that returns all supported data types from collect()."""
+
+    def collect(self, config):
+        data = self.new_data()
+        for datasource in self.config.datasources:
+            data["events"].append({
+                "component": datasource.component,
+                "severity": 2,
+                "summary": "TestReturnedDataPlugin {}".format(
+                    datasource.datasource)})
+
+            for point in datasource.points:
+                data["values"][datasource.component][point.dpName] = 88.0
+
+            data["metrics"].append(
+                self.new_metric(
+                    name="adhoc.{}".format(datasource.datasource),
+                    value=77.0,
+                    tags={
+                        "type": "adhoc",
+                        "plugin": "TestReturnedDataPlugin",
+                        "device": datasource.device,
+                        "component": datasource.component}))
+
+            data["maps"].append(
+                ObjectMap(
+                    data={
+                        datasource.datasource: 88.0}))
+
+            data["interval"] = datasource.cycletime
+
+        return defer.succeed(data)
+
+
+class TestPublishedDataPlugin(PerDeviceTestPlugin):
+    """Plugin that publishes all supported data types."""
+
+    def __init__(self, config):
+        super(TestPublishedDataPlugin, self).__init__(config)
+        self.loop = LoopingCall(self.onLoop, config)
+        self.loop.start(10, now=False)
+
+    def cleanup(self, config):
+        self.loop.stop()
+
+    @defer.inlineCallbacks
+    def onLoop(self, config):
+        for datasource in config.datasources:
+            yield self.publishEvents([{
+                "component": datasource.component,
+                "severity": 2,
+                "summary": "TestReturnedDataPlugin {}".format(
+                    datasource.datasource)}])
+
+            for point in datasource.points:
+                yield self.publishValues({
+                    datasource.component: {
+                        point.dpName: 88.0}})
+
+            yield self.publishMetrics([
+                self.new_metric(
+                    name="adhoc.{}".format(datasource.datasource),
+                    value=77.0,
+                    tags={
+                        "type": "adhoc",
+                        "plugin": "TestReturnedDataPlugin",
+                        "device": datasource.device,
+                        "component": datasource.component})])
+
+            yield self.publishMaps([
+                ObjectMap(data={datasource.datasource: 88.0})])
+
+            self.changeInterval(datasource.cycletime)
