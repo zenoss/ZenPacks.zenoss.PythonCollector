@@ -278,8 +278,8 @@ class MyPlugin(PythonDataSourcePlugin):
         """
         Called only on success. After onResult, before onComplete.
 
-        You should return a data structure with zero or more events, values
-        and maps.
+        You should return a data structure with zero or more events, values,
+        metrics, and maps.
         """
         collectionTime = time.time()
         return {
@@ -312,6 +312,16 @@ class MyPlugin(PythonDataSourcePlugin):
                     'io': (23, collectionTime),
                     }
                 },
+
+            'metrics': [
+                self.new_metric(
+                    name="adhoc.metric1",
+                    value=6.78,
+                    timestamp=collectionTime,    # optional, default is now
+                    tags={                       # optional, default is {}
+                        "anything": "you want",
+                    }),
+                ],
 
             'maps': [
                 ObjectMap(...),
@@ -355,6 +365,150 @@ class MyPlugin(PythonDataSourcePlugin):
         """
         return
 </code></pre>
+
+<h3 id="data-types">Types of Data</h3>
+<p>A PythonDataSourcePlugin has the ability to publish four types of data: events, values, metrics, and maps.</p>
+
+<h4 id="data-events">Events</h4>
+<p>Events are straightforward. They are the events that end up in the Zenoss event console. When publishing from a plugin they are expected to be supplied as a list of dictionaries where each dictionary looks as follows.</p>
+
+<pre><code>
+events = [
+    {
+        "device": "DEVICE_ID",
+        "component": "COMPONENT_ID",
+        "severity": 2,
+        "summary": "a brief (128 characters or less) summary of the event",
+        "message": "additional text that can be lengthy",
+        "eventKey": "stringUniqueToTypeOfEvent",
+        "eventClassKey": "stringToAidInMappingEvent",
+        "rcvtime": 1539978022
+    }
+]
+</code></pre>
+
+<p>Only the <i>summary</i>, and <i>severity</i> fields are required. The <i>device</i> field will be automatically filled by zenpython if not specified. As many arbitrary additional fields as desired may be added to the event.</p>
+
+<h4 id="data-values">Values</h4>
+<p>Values are values for configured datapoints. When publishing from a plugin they are expected to be supplied as dictionary of dictionaries that looks like the following example.</p>
+
+<pre><code>
+values = {
+    None: {
+        # datapoints for the device (no component)
+        'datasource1_datapoint1': (123.4, collectionTime),
+        'datasource1_datapoint2': (5.678, collectionTime)
+    },
+    'cpu1': {
+        # datapoints can be specified per datasource.
+        'datasource1_user': (12.1, collectionTime),
+        'datasource2_user': (13.2, collectionTime),
+        # or just by id
+        'io': (23, collectionTime),
+        # collectionTime is optional. Now is assumed.
+        'datasource1_system": 1.21
+    }
+}
+</code></pre>
+
+<h4 id="data-metrics">Metrics</h4>
+<p>Metrics are ad hoc metrics that don't have to be associated with any datapoint. They are primarily useful in Zenoss Cloud where there are tools for visualizing metrics that have no pre-configured datapoints and graphs to show those datapoints. When publishing from a plugin they are expected to be supplied as a list of <i>Metric</i> objects. These <i>Metric</i> objects are created using the <i>self.new_metric(name, value, timestamp, tags)</i> method as follows.</p>
+
+<pre><code>
+[
+    self.new_metric(
+        name="adhoc.metric1",
+        value=6.78,
+        timestamp=collectionTime,    # optional, default is now
+        tags={                       # optional, default is {}
+            "anything": "you want"
+        })
+]
+</code></pre>
+
+<p>Typically ad hoc metrics are only useful in Zenoss Cloud. Due to this you may want to set the <i>'no-store'</i> tag to <i>'true'</i> to avoid having it stored in the collection zone where it won't be useful. It will still be forwarded to Zenoss Cloud.</p>
+
+<h4 id="data-maps">Maps</h4>
+<p>Maps are <i>DataMaps</i> which are Zenoss' mechanism for supplying model data. When publishing from a plugin they are expected to be supplied as a list of <i>ObjectMap</i> and/or <i>RelationshipMap</i> objects as follows.</p>
+
+<pre><code>
+[
+    ObjectMap(
+        data={
+            "snmpSysName": "the system's name",
+            "snmpSysDescr": "a description of the system"})
+
+    ObjectMap(
+        compname="hw",
+        data={"totalMemory": 34359738368}),
+
+    ObjectMap(
+        compname="os",
+        data={"totalSwap": 0}),
+    
+    RelationshipMap(
+        compname="os",
+        relname="interfaces",
+        modname="Products.ZenModel.IpInterface",
+        objmaps=[
+            {
+                "id": "eth0",
+                "interfaceName": "eth0",
+                "speed": 10000000000,
+                "ifType": "ethernetCsmacd",
+            }
+        ]
+    ),
+]
+</code></pre>
+
+<h3 id="immediate-publishing">Publishing Data Immediately</h3>
+<p>In the <i>MyPlugin</i> example above you will see that data (events, values, metrics, maps) are returned from the <i>onSuccess</i>, <i>onError</i>, etc. methods. These methods are only executed when the Deferred returned by the <i>collect</i> method completes. The <i>collect</i> method is executed by zenpython once per cycletime of the associated datasources. Normally this is desirable as it allows data to be collected on a predetermined schedule. However, there are cases where you may get data at unpredictable times, and would like to publish that data immediately without waiting for the <i>collect</i> method to be called again. There are a number of additional methods available to <i>PythonDataSourcePlugin</i> classes that make this possible.</p>
+
+<p>The following methods are available to <i>PythonDataSourcePlugin</i> for immediate data publishing.
+<ul>
+    <li><i>publishEvents(events : List[dict])</i></li>
+    <li><i>publishValues(values : Dict[dict])</i></li>
+    <li><i>publishMetrics(metrics : List[Metric])</i></li>
+    <li><i>publishMaps(maps : List[DataMap])</i></li>
+    <li><i>publishData(data : Dict[Any])</i></li>
+</ul>
+</p>
+
+<p>Additionally there is a <i>changeInterval(interval : int)</i> method to change the collection interval.</p>
+
+<p>These methods allow for all of the same capabilities of the <i>data</i> dictionary returned by <i>on*</i> methods, but done outside of the predetermined collection interval.</p>
+
+<h4 id="immediate-publishing-examples">Examples</h4>
+<p>See the following example of a plugin that uses immediate publishing. This example is simplified. See the above example for a more complete example for necessary imports, and other options.</p>
+
+<pre><code>
+from twisted.internet import defer
+from somewhere import MyListener
+
+class MyPlugin(PythonDataSourcePlugin):
+    listener = None
+
+    def collect(self, config):
+        if not self.listener:
+            self.listener = MyListener(
+                config=config,
+                callback=self.onDataReceived)
+
+        if not self.listener.running:
+            self.listener.start()
+
+        return defer.succeed(None)
+
+    def cleanup(self, config):
+        if self.listener:
+            self.listener.stop()
+
+    def onDataReceived(self, data):
+        self.publishData(data)
+</code></pre>
+
+<p>In the above example our plugin's <i>collect</i> method is only responsible for creating and starting a listener that can get data at any time. When it gets data, it is immediately published by the callback: <i>onDataReceived</i>.</p>
 
 <h3 id="extending-the-python-data-source-type">Extending the Python Data Source Type</h3>
 <p>To extend the <i>Python</i> data source type to create a new data source type you will absolutely need to create a ZenPack to contain your new data source type. Assuming you have a ZenPack named ZenPacks.example.PackName you would create a ZenPacks/example/PackName/datasources/MyDataSource.py file with contents like the following.</p>
@@ -588,6 +742,7 @@ class MyDataSourcePlugin(PythonDataSourcePlugin):
 <h3 id="changes-1.11.0">1.11.0</h3>
 <ul>
     <li>Support extra datapoint tags in Zenoss Cloud. (ZPS-4587)</li>
+    <li>Support publishing ad hoc metrics from plugins. (ZPS-4629)</li>
 </ul>
 
 <h3 id="changes-1.10.1">1.10.1</h3>

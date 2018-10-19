@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2012, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2012-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -259,6 +259,7 @@ class PythonCollectionTask(BaseTask):
     zope.interface.implements(IScheduledTask)
 
     STATE_STORE_PERF = 'STORE_PERF_DATA'
+    STATE_PUBLISH_METRICS = 'PUBLISH_METRICS'
     STATE_SEND_EVENTS = 'SEND_EVENTS'
     STATE_APPLY_MAPS = 'APPLY_MAPS'
     STATE_BLOCKING = 'BLOCKING'
@@ -367,6 +368,14 @@ class PythonCollectionTask(BaseTask):
             returnValue(service)
 
         plugin.getService = _getServiceFromCollector
+
+        # New in 1.11: Allow plugins to directly and immediately publish data.
+        plugin.publishData = self.processResults
+        plugin.publishEvents = self.sendEvents
+        plugin.publishValues = self.storeValues
+        plugin.publishMetrics = self.publishMetrics
+        plugin.publishMaps = self.applyMaps
+        plugin.changeInterval = self.changeInterval
 
         return plugin
 
@@ -479,7 +488,7 @@ class PythonCollectionTask(BaseTask):
         if self.runningTimeout:
             d.addBoth(self.handleTimeout)
 
-        # Have zenpython process the results: events, values, maps.
+        # Have zenpython process the results: events, values, metrics, maps.
         d.addCallback(self.processResults)
 
         # Have zenpython handle any errors not handled by the plugin.
@@ -534,6 +543,10 @@ class PythonCollectionTask(BaseTask):
         if 'values' in result:
             yield self.storeValues(result['values'])
 
+        # New in 1.11. Publishing of ad hoc metrics.
+        if 'metrics' in result:
+            yield self.publishMetrics(result['metrics'])
+
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
             d = self.applyMaps(result['maps'])
@@ -545,19 +558,14 @@ class PythonCollectionTask(BaseTask):
 
         # New in 1.9.0. Will change task's interval once set.
         if 'interval' in result:
-            interval = int(result['interval'])
-            if interval != self.interval:
-                self.interval = interval
+            self.changeInterval(result['interval'])
 
     @inlineCallbacks
     def sendEvents(self, events):
         if not events:
-            return
+            returnValue(None)
 
         self.state = PythonCollectionTask.STATE_SEND_EVENTS
-
-        if len(events) < 1:
-            return
 
         # Default event fields.
         for i, event in enumerate(events):
@@ -574,7 +582,7 @@ class PythonCollectionTask(BaseTask):
     @inlineCallbacks
     def storeValues(self, values):
         if not values:
-            return
+            returnValue(None)
 
         self.state = PythonCollectionTask.STATE_STORE_PERF
 
@@ -607,7 +615,8 @@ class PythonCollectionTask(BaseTask):
 
                     for value, timestamp in get_dp_values(dp_value):
                         if self.writeMetricWithMetadata:
-                            yield maybeDeferred(self._dataService.writeMetricWithMetadata,
+                            yield maybeDeferred(
+                                self._dataService.writeMetricWithMetadata,
                                 dp.dpName,
                                 value,
                                 dp.rrdType,
@@ -619,7 +628,8 @@ class PythonCollectionTask(BaseTask):
                                 **write_kwargs)
 
                         else:
-                            self._dataService.writeRRD(
+                            yield maybeDeferred(
+                                self._dataService.writeRRD,
                                 dp.rrdPath,
                                 value,
                                 dp.rrdType,
@@ -630,6 +640,26 @@ class PythonCollectionTask(BaseTask):
                                 threshEventData=threshData,
                                 timestamp=timestamp,
                                 **WRITERRD_ARGS)
+
+    @inlineCallbacks
+    def publishMetrics(self, metrics):
+        if not (metrics and self.writeMetricWithMetadata):
+            returnValue(None)
+
+        self.state = PythonCollectionTask.STATE_PUBLISH_METRICS
+
+        writer = self._dataService.metricWriter()
+
+        for metric in metrics:
+            try:
+                yield defer.maybeDeferred(
+                    writer.write_metric,
+                    metric.name,
+                    metric.value,
+                    metric.timestamp,
+                    metric.tags)
+            except Exception as e:
+                log.debug("error writing metric: %s", e)
 
     @inlineCallbacks
     def applyMaps(self, maps):
@@ -656,6 +686,11 @@ class PythonCollectionTask(BaseTask):
                 log.debug("%s changes applied", self.name)
             else:
                 log.debug("%s no changes applied", self.name)
+
+    def changeInterval(self, interval):
+        interval = int(interval)
+        if interval != self.interval:
+            self.interval = interval
 
     def handleError(self, result):
         if isinstance(result, Failure):

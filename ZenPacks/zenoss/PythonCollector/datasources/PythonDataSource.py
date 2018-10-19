@@ -1,17 +1,20 @@
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2012, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2012-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
 #
 ##############################################################################
 
-from collections import defaultdict
+import collections
+import time
 
 from Acquisition import aq_base
 from zope.component import adapts
 from zope.interface import implements
+
+from twisted.internet import defer
 
 from Products.ZenModel.RRDDataSource import RRDDataSource
 from Products.ZenModel.ZenPackPersistence import ZenPackPersistence
@@ -152,7 +155,8 @@ class PythonDataSourcePlugin(object):
         """
         pass
 
-    def new_data(self):
+    @staticmethod
+    def new_data():
         """
         Return an empty data structure.
 
@@ -162,10 +166,19 @@ class PythonDataSourcePlugin(object):
         Products.ZenRRD.parsers.JSON.
         """
         return {
-            'values': defaultdict(dict),
+            'values': collections.defaultdict(dict),
+            'metrics': [],
             'events': [],
             'maps': [],
             }
+
+    @staticmethod
+    def new_metric(name, value, timestamp=None, tags=None):
+        return Metric(
+            name=name,
+            value=value,
+            timestamp=timestamp or time.time(),
+            tags=tags or {})
 
     def getService(self, service_name):
         """
@@ -193,9 +206,114 @@ class PythonDataSourcePlugin(object):
               subclasses.
         """
 
+    def publishData(self, data):
+        """Return Deferred that fires when data is published.
+
+        data must be a dict as is returned new_data().
+
+        This is an alternative to returning data from the collect() method. It
+        should only be used when there is data to be published at a time that
+        is inconvenient to waiting for collect to be called.
+
+        This is a wrapper that calls the following methods. The other methods
+        can be used instead if there's a specific type of data to be published.
+
+        - publishEvents
+        - publishValues
+        - publishMetrics
+        - publishMaps
+        - changeInterval
+
+        Note: This method cannot be overridden. It is injected by zenpython.
+
+        """
+
+    def publishEvents(self, events):
+        """Return Deferred that fires when events are published.
+
+        events must be an iterable of event dictionaries.
+
+        This is an alternative to returning data["events"] from the collect()
+        method. It should only be used when there are events to be published at
+        a time that is inconvenient to waiting for collect to be called.
+
+        This method is called by publishData() which can be used if there's
+        more than just events to publish.
+
+        Note: This method cannot be overridden. It is injected by zenpython.
+
+        """
+
+    def publishValues(self, values):
+        """Return Deferred that fires when values are published.
+
+        values must be a dict (or defaultdict) with the same requirements as
+        the data["values"] returned from new_data().
+
+        This is an alternative to returning data["values"] from the collect()
+        method. It should only be used when there are events to be published at
+        a time that is inconvenient to waiting for collect to be called.
+
+        This method is called by publishData() which can be used if there's
+        more than just values to publish.
+
+        Note: This method cannot be overridden. It is injected by zenpython.
+
+        """
+
+    def publishMetrics(self, metrics):
+        """Return Deferred that fires when metrics are published.
+
+        metrics must be a List[Metric] with the same requirements as the
+        data["metrics"] returned from new_data().
+
+        This is an alternative to returning data["metrics"] from the collect()
+        method. It should only be used when there are metrics to be published at
+        a time that is inconvenient to waiting for collect to be called.
+
+        This method is called by publishData() which can be used if there's
+        more than just metrics to publish.
+
+        Note: This method cannot be overridden. It is injected by zenpython.
+
+        """
+
+    def publishMaps(self, maps):
+        """Return Deferred that fires when maps are published.
+
+        maps must be a List[DataMaps] with the same requirements as the
+        data["maps"] returned from new_data().
+
+        This is an alternative to returning data["maps"] from the collect()
+        method. It should only be used when there are maps to be published at
+        a time that is inconvenient to waiting for collect to be called.
+
+        This method is called by publishData() which can be used if there's
+        more than just maps to publish.
+
+        Note: This method cannot be overridden. It is injected by zenpython.
+
+        """
+
+    def changeInterval(self, interval):
+        """Change collection interval for this plugin. Returns None.
+
+        This is the same as returning a new interval from collect in
+        data["interval"]. The only difference is that this method can be
+        called by the plugin at a time other than when the collect method
+        returns.
+
+        This method is called by publishData() which can be used if there's
+        data to publish in addition to changing the plugin's collection
+        interval.
+
+        Note: This method cannot be overridden. It is injected by zenpython.
+
+        """
+
     def collect(self, config):
         """No default collect behavior. Must be implemented in subclass."""
-        return NotImplementedError
+        return defer.succeed(None)
 
     def onResult(self, result, config):
         """Called first for success and error."""
@@ -216,3 +334,11 @@ class PythonDataSourcePlugin(object):
     def cleanup(self, config):
         """Called when collector exits, or task is deleted or recreated."""
         return
+
+
+Metric = collections.namedtuple(
+    "Metric", (
+        "name",
+        "value",
+        "timestamp",
+        "tags"))
