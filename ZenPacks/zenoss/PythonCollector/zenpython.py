@@ -327,6 +327,10 @@ class PythonCollectionTask(BaseTask):
         # New in 1.10.0: Track the number of tasks timed out by runningtimeout.
         self.timedOutTasks = self.getStatistic('timedOutTasks', 'COUNTER')
 
+        # New in 1.11.0: Support for datapoint extra tags.
+        self.metricExtraTags = getattr(
+            self._dataService, "metricExtraTags", False)
+
     def getStatistic(self, name, type_):
         """Return statistic. It will be added first if necessary."""
         try:
@@ -594,6 +598,13 @@ class PythonCollectionTask(BaseTask):
                         'component': datasource.component,
                         }
 
+                    # New in 1.11: Support for extra datapoint tags.
+                    tags = getattr(dp, "tags", None)
+                    if tags and self.metricExtraTags:
+                        write_kwargs = {"extraTags": tags}
+                    else:
+                        write_kwargs = {}
+
                     for value, timestamp in get_dp_values(dp_value):
                         if self.writeMetricWithMetadata:
                             yield maybeDeferred(self._dataService.writeMetricWithMetadata,
@@ -604,7 +615,8 @@ class PythonCollectionTask(BaseTask):
                                 min=dp.rrdMin,
                                 max=dp.rrdMax,
                                 threshEventData=threshData,
-                                metadata=dp.metadata)
+                                metadata=dp.metadata,
+                                **write_kwargs)
 
                         else:
                             self._dataService.writeRRD(
