@@ -145,7 +145,7 @@
     <dd>Prevents specific plugins from running. This is primarily a developer option to help reduce the noise while developing plugins. The default is to not ignore any configured plugins. The value for this option is a regular expression. Only plugins which class name doesn't match the regular expression will be run.</dd>
 
     <dt>datasource</dt>
-    <dd>Allows only specific datasource to collect. The format is 'template/datasource'. If you want to collect for datasource on device level you need to check the template name (in most cases it's Device'). e. g. 'ethernetCsmacd/bytesSentSec'.</dd>
+    <dd>Collects only the specified datasource. The format is "template/datasource". For example, collecting for a network interface component on a Windows server: ethernetCsmacd/bytesSentSec.</dd>
 </dl>
 
 

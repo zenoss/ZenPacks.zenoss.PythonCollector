@@ -293,9 +293,9 @@ class PythonCollectionTask(BaseTask):
         self.blockingWarning = self._preferences.options.blockingWarning
         self.blockingTimeout = self._preferences.options.blockingTimeout
         self.blockingPlugins = self._preferences.blockingPlugins
-        self._choosenDatasource = self._preferences.options.datasource
+        self.choosenDatasource = self._preferences.options.datasource
 
-        if self._choosenDatasource:
+        if self.choosenDatasource:
             self.config.datasources = self.getDatasources()
 
         self.plugin = self.initializePlugin()
@@ -344,10 +344,14 @@ class PythonCollectionTask(BaseTask):
             self._dataService, "metricExtraTags", False)
 
     def getDatasources(self):
-        (template, datasource) = self._choosenDatasource.split('/')
-        filteredDatasources = [ds for ds in self.config.datasources
-                               if ds.template == template and
-                               ds.datasource == datasource]
+        try:
+            (template, datasource) = self.choosenDatasource.split('/')
+        except ValueError:
+            log.error('Invalid datasource format')
+            return []
+        filteredDatasources = [
+            ds for ds in self.config.datasources
+            if ds.template == template and ds.datasource == datasource]
         if len(filteredDatasources) == 0:
             log.error('No configs for template %s, datasource %s',
                       template, datasource)
@@ -369,9 +373,7 @@ class PythonCollectionTask(BaseTask):
 
     def initializePlugin(self):
         """Return initialized PythonDataSourcePlugin for this task."""
-        from ZenPacks.zenoss.PythonCollector.services.PythonConfig import (
-            load_plugin_class
-        )
+        from ZenPacks.zenoss.PythonCollector.services.PythonConfig import load_plugin_class
         plugin_class = load_plugin_class(
             self.config.datasources[0].plugin_classname)
 
@@ -597,7 +599,7 @@ class PythonCollectionTask(BaseTask):
             # On CTRL-C or exit the reactor might stop before we get to this
             # call and generate a traceback.
             if reactor.running:
-                # do in chunks of 100 to give time to reactor
+                #do in chunks of 100 to give time to reactor
                 self._eventService.sendEvent(event)
                 if i % 100:
                     yield task.deferLater(reactor, 0, lambda: None)
@@ -608,9 +610,9 @@ class PythonCollectionTask(BaseTask):
             returnValue(None)
 
         self.state = PythonCollectionTask.STATE_STORE_PERF
-        if self._choosenDatasource:
+        if self.choosenDatasource:
             log.info("Values would be stored for datasource %s",
-                     self._choosenDatasource)
+                     self.choosenDatasource)
 
         for datasource in self.config.datasources:
             component_values = values.get(datasource.component)
@@ -640,7 +642,7 @@ class PythonCollectionTask(BaseTask):
                         write_kwargs = {}
 
                     for value, timestamp in get_dp_values(dp_value):
-                        if self._choosenDatasource:
+                        if self.choosenDatasource:
                             log.info("Component: %s >> DataPoint: %s %s",
                                      dp.metadata['contextKey'], dp.dpName,
                                      value)
@@ -708,8 +710,8 @@ class PythonCollectionTask(BaseTask):
                 'applyDataMaps', self.configId, maps)
         except (pb.PBConnectionLost, HubDown), e:
             log.error("Connection was closed by remote, "
-                      "please check zenhub health. "
-                      "%s lost %s datamaps", self.name, len(maps))
+                "please check zenhub health. "
+                "%s lost %s datamaps", self.name, len(maps))
         except Exception, e:
             log.exception("%s lost %s datamaps", self.name, len(maps))
         else:
