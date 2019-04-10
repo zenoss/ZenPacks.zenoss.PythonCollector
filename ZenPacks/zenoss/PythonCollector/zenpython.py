@@ -293,9 +293,9 @@ class PythonCollectionTask(BaseTask):
         self.blockingWarning = self._preferences.options.blockingWarning
         self.blockingTimeout = self._preferences.options.blockingTimeout
         self.blockingPlugins = self._preferences.blockingPlugins
-        self.choosenDatasource = self._preferences.options.datasource
+        self.chosenDatasource = self._preferences.options.datasource
 
-        if self.choosenDatasource:
+        if self.chosenDatasource:
             self.config.datasources = self.getDatasources()
 
         self.plugin = self.initializePlugin()
@@ -345,7 +345,7 @@ class PythonCollectionTask(BaseTask):
 
     def getDatasources(self):
         try:
-            (template, datasource) = self.choosenDatasource.split('/')
+            template, datasource = self.chosenDatasource.split('/')
         except ValueError:
             log.error('Invalid datasource format')
             return []
@@ -353,8 +353,9 @@ class PythonCollectionTask(BaseTask):
             ds for ds in self.config.datasources
             if ds.template == template and ds.datasource == datasource]
         if len(filteredDatasources) == 0:
-            log.error('No configs for template %s, datasource %s',
-                      template, datasource)
+            log.error(
+                'No configs for template %s, datasource %s',
+                template, datasource)
         return filteredDatasources
 
     def getStatistic(self, name, type_):
@@ -610,9 +611,10 @@ class PythonCollectionTask(BaseTask):
             returnValue(None)
 
         self.state = PythonCollectionTask.STATE_STORE_PERF
-        if self.choosenDatasource:
-            log.info("Values would be stored for datasource %s",
-                     self.choosenDatasource)
+        if self.chosenDatasource:
+            log.info(
+                "Values would be stored for datasource %s",
+                self.chosenDatasource)
 
         for datasource in self.config.datasources:
             component_values = values.get(datasource.component)
@@ -642,10 +644,10 @@ class PythonCollectionTask(BaseTask):
                         write_kwargs = {}
 
                     for value, timestamp in get_dp_values(dp_value):
-                        if self.choosenDatasource:
-                            log.info("Component: %s >> DataPoint: %s %s",
-                                     dp.metadata['contextKey'], dp.dpName,
-                                     value)
+                        if self.chosenDatasource:
+                            log.info(
+                                "Component: %s >> DataPoint: %s %s",
+                                dp.metadata['contextKey'], dp.dpName, value)
 
                         if self.writeMetricWithMetadata:
                             yield maybeDeferred(
