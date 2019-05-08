@@ -169,7 +169,7 @@ class Scenario(object):
         """Timeout before operation completes."""
         watchdog.start()
         with watchdog.timeout(1, "timeout_before_complete"):
-            time.sleep(2)
+            time.sleep(10)
 
         sys.exit(ExitCode.NOT_RESTARTED)
 
@@ -189,7 +189,7 @@ class Scenario(object):
         else:
             watchdog.start()
             with watchdog.timeout(1, 'timeout_file'):
-                time.sleep(2)
+                time.sleep(10)
 
             sys.exit(ExitCode.NOT_RESTARTED)
 
