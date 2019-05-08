@@ -21,7 +21,6 @@ import collections
 import functools
 import inspect
 import re
-import time
 
 import Globals
 
@@ -73,6 +72,7 @@ from ZenPacks.zenoss.PythonCollector import watchdog
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
 from ZenPacks.zenoss.PythonCollector.web.semaphores import DEFAULT_TWISTEDCONCURRENTHTTP
+from ZenPacks.zenoss.PythonCollector.lib.monotonic import monotonic
 
 try:
     from Products.ZenUtils.Utils import varPath
@@ -414,12 +414,12 @@ class PythonCollectionTask(BaseTask):
 
             # Set state and set start time then execute function.
             self.state = PythonCollectionTask.STATE_BLOCKING
-            start_time = time.time()
+            start_time = monotonic.monotonic()
 
             try:
                 return f(*args, **kwargs)
             finally:
-                elapsed_time = (time.time() - start_time)
+                elapsed_time = (monotonic.monotonic() - start_time)
 
                 # Track seconds spent in wrapped functions with as much
                 # precision as the system allows. Convert the precise
