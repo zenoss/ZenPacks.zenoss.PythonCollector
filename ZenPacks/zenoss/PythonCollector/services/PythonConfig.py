@@ -16,6 +16,7 @@ from twisted.spread import pb
 
 from Products.DataCollector.ApplyDataMap import ApplyDataMap
 from Products.ZenCollector.services.config import CollectorConfigService
+from Products.ZenHub.PBDaemon import translateError
 from Products.ZenRRD.zencommand import DataPointConfig
 from Products.ZenUtils.ZenTales import talesEvalStr
 
@@ -230,6 +231,7 @@ class PythonConfig(CollectorConfigService):
                         break
         return result
 
+    @translateError
     def remote_applyDataMaps(self, device, datamaps):
         device_obj = self.getPerformanceMonitor().findDevice(device)
         if device_obj is None:
