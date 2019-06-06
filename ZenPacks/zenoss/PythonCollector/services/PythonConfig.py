@@ -129,7 +129,7 @@ class PythonConfig(CollectorConfigService):
                         dp_config.metadata = deviceOrComponent.getMetricMetadata()
 
                     # Support for RRDDataPoint.tags added in Zenoss 7.
-                    if hasattr(dp, "getTags"):
+                    if dp.aqBaseHasAttr("getTags"):
                         dp_config.tags = dp.getTags(deviceOrComponent)
                     else:
                         dp_config.tags = {}
