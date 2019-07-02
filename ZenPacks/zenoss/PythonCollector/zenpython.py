@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2012, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2012-2018, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -21,7 +21,6 @@ import collections
 import functools
 import inspect
 import re
-import time
 
 import Globals
 
@@ -73,6 +72,7 @@ from ZenPacks.zenoss.PythonCollector import watchdog
 from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
 from ZenPacks.zenoss.PythonCollector.web.semaphores import DEFAULT_TWISTEDCONCURRENTHTTP
+from ZenPacks.zenoss.PythonCollector.lib.monotonic import monotonic
 
 try:
     from Products.ZenUtils.Utils import varPath
@@ -158,6 +158,13 @@ class Preferences(object):
             type='int',
             default=DEFAULT_TWISTEDCONCURRENTHTTP,
             help="Overall limit of concurrent HTTP connections by all plugins which utilize ZenPacks.zenoss.PythonCollector.web.client.getPage")
+
+        parser.add_option(
+            '--datasource',
+            dest='datasource',
+            type='string',
+            default=None,
+            help="Collect just for one datasource")
 
     def postStartup(self):
         if self.options.ignorePlugins and self.options.collectPlugins:
@@ -259,6 +266,7 @@ class PythonCollectionTask(BaseTask):
     zope.interface.implements(IScheduledTask)
 
     STATE_STORE_PERF = 'STORE_PERF_DATA'
+    STATE_PUBLISH_METRICS = 'PUBLISH_METRICS'
     STATE_SEND_EVENTS = 'SEND_EVENTS'
     STATE_APPLY_MAPS = 'APPLY_MAPS'
     STATE_BLOCKING = 'BLOCKING'
@@ -285,6 +293,10 @@ class PythonCollectionTask(BaseTask):
         self.blockingWarning = self._preferences.options.blockingWarning
         self.blockingTimeout = self._preferences.options.blockingTimeout
         self.blockingPlugins = self._preferences.blockingPlugins
+        self.chosenDatasource = self._preferences.options.datasource
+
+        if self.chosenDatasource:
+            self.config.datasources = self.getDatasources()
 
         self.plugin = self.initializePlugin()
 
@@ -327,6 +339,25 @@ class PythonCollectionTask(BaseTask):
         # New in 1.10.0: Track the number of tasks timed out by runningtimeout.
         self.timedOutTasks = self.getStatistic('timedOutTasks', 'COUNTER')
 
+        # New in 1.11.0: Support for datapoint extra tags.
+        self.metricExtraTags = getattr(
+            self._dataService, "metricExtraTags", False)
+
+    def getDatasources(self):
+        try:
+            template, datasource = self.chosenDatasource.split('/')
+        except ValueError:
+            log.error('Invalid datasource format')
+            return []
+        filteredDatasources = [
+            ds for ds in self.config.datasources
+            if ds.template == template and ds.datasource == datasource]
+        if len(filteredDatasources) == 0:
+            log.error(
+                'No configs for template %s, datasource %s',
+                template, datasource)
+        return filteredDatasources
+
     def getStatistic(self, name, type_):
         """Return statistic. It will be added first if necessary."""
         try:
@@ -364,6 +395,14 @@ class PythonCollectionTask(BaseTask):
 
         plugin.getService = _getServiceFromCollector
 
+        # New in 1.11: Allow plugins to directly and immediately publish data.
+        plugin.publishData = self.processResults
+        plugin.publishEvents = self.sendEvents
+        plugin.publishValues = self.storeValues
+        plugin.publishMetrics = self.publishMetrics
+        plugin.publishMaps = self.applyMaps
+        plugin.changeInterval = self.changeInterval
+
         return plugin
 
     def wrapPluginCall(self, f):
@@ -375,12 +414,12 @@ class PythonCollectionTask(BaseTask):
 
             # Set state and set start time then execute function.
             self.state = PythonCollectionTask.STATE_BLOCKING
-            start_time = time.time()
+            start_time = monotonic.monotonic()
 
             try:
                 return f(*args, **kwargs)
             finally:
-                elapsed_time = (time.time() - start_time)
+                elapsed_time = (monotonic.monotonic() - start_time)
 
                 # Track seconds spent in wrapped functions with as much
                 # precision as the system allows. Convert the precise
@@ -475,7 +514,7 @@ class PythonCollectionTask(BaseTask):
         if self.runningTimeout:
             d.addBoth(self.handleTimeout)
 
-        # Have zenpython process the results: events, values, maps.
+        # Have zenpython process the results: events, values, metrics, maps.
         d.addCallback(self.processResults)
 
         # Have zenpython handle any errors not handled by the plugin.
@@ -530,6 +569,10 @@ class PythonCollectionTask(BaseTask):
         if 'values' in result:
             yield self.storeValues(result['values'])
 
+        # New in 1.11. Publishing of ad hoc metrics.
+        if 'metrics' in result:
+            yield self.publishMetrics(result['metrics'])
+
         # New in 1.3. It's OK to not set results maps key.
         if 'maps' in result:
             d = self.applyMaps(result['maps'])
@@ -541,19 +584,14 @@ class PythonCollectionTask(BaseTask):
 
         # New in 1.9.0. Will change task's interval once set.
         if 'interval' in result:
-            interval = int(result['interval'])
-            if interval != self.interval:
-                self.interval = interval
+            self.changeInterval(result['interval'])
 
     @inlineCallbacks
     def sendEvents(self, events):
         if not events:
-            return
+            returnValue(None)
 
         self.state = PythonCollectionTask.STATE_SEND_EVENTS
-
-        if len(events) < 1:
-            return
 
         # Default event fields.
         for i, event in enumerate(events):
@@ -570,9 +608,13 @@ class PythonCollectionTask(BaseTask):
     @inlineCallbacks
     def storeValues(self, values):
         if not values:
-            return
+            returnValue(None)
 
         self.state = PythonCollectionTask.STATE_STORE_PERF
+        if self.chosenDatasource:
+            log.info(
+                "Values would be stored for datasource %s",
+                self.chosenDatasource)
 
         for datasource in self.config.datasources:
             component_values = values.get(datasource.component)
@@ -594,9 +636,22 @@ class PythonCollectionTask(BaseTask):
                         'component': datasource.component,
                         }
 
+                    # New in 1.11: Support for extra datapoint tags.
+                    tags = getattr(dp, "tags", None)
+                    if tags and self.metricExtraTags:
+                        write_kwargs = {"extraTags": tags}
+                    else:
+                        write_kwargs = {}
+
                     for value, timestamp in get_dp_values(dp_value):
+                        if self.chosenDatasource:
+                            log.info(
+                                "Component: %s >> DataPoint: %s %s",
+                                dp.metadata['contextKey'], dp.dpName, value)
+
                         if self.writeMetricWithMetadata:
-                            yield maybeDeferred(self._dataService.writeMetricWithMetadata,
+                            yield maybeDeferred(
+                                self._dataService.writeMetricWithMetadata,
                                 dp.dpName,
                                 value,
                                 dp.rrdType,
@@ -604,10 +659,12 @@ class PythonCollectionTask(BaseTask):
                                 min=dp.rrdMin,
                                 max=dp.rrdMax,
                                 threshEventData=threshData,
-                                metadata=dp.metadata)
+                                metadata=dp.metadata,
+                                **write_kwargs)
 
                         else:
-                            self._dataService.writeRRD(
+                            yield maybeDeferred(
+                                self._dataService.writeRRD,
                                 dp.rrdPath,
                                 value,
                                 dp.rrdType,
@@ -618,6 +675,26 @@ class PythonCollectionTask(BaseTask):
                                 threshEventData=threshData,
                                 timestamp=timestamp,
                                 **WRITERRD_ARGS)
+
+    @inlineCallbacks
+    def publishMetrics(self, metrics):
+        if not (metrics and self.writeMetricWithMetadata):
+            returnValue(None)
+
+        self.state = PythonCollectionTask.STATE_PUBLISH_METRICS
+
+        writer = self._dataService.metricWriter()
+
+        for metric in metrics:
+            try:
+                yield defer.maybeDeferred(
+                    writer.write_metric,
+                    metric.name,
+                    metric.value,
+                    metric.timestamp,
+                    metric.tags)
+            except Exception as e:
+                log.debug("error writing metric: %s", e)
 
     @inlineCallbacks
     def applyMaps(self, maps):
@@ -644,6 +721,11 @@ class PythonCollectionTask(BaseTask):
                 log.debug("%s changes applied", self.name)
             else:
                 log.debug("%s no changes applied", self.name)
+
+    def changeInterval(self, interval):
+        interval = int(interval)
+        if interval != self.interval:
+            self.interval = interval
 
     def handleError(self, result):
         if isinstance(result, Failure):

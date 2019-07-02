@@ -76,6 +76,24 @@ device_classes:
             datapoints:
               sin: GAUGE
 
+          returnedData:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestReturnedDataPlugin
+            component: ""
+            cycletime: "30"
+
+            datapoints:
+              value: GAUGE
+
+          publishedData:
+            type: Python
+            plugin_classname: ZenPacks.test.PythonCollector.plugins.TestPublishedDataPlugin
+            component: ""
+            cycletime: "30"
+
+            datapoints:
+              value: GAUGE
+
         graphs:
           Waves:
             units: height

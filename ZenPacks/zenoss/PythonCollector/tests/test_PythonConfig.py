@@ -138,47 +138,73 @@ class remote_applyDataMapsTests(BaseTestCase):
                 0, self.device.os.interfaces.countObjects(),
                 "{} = True didn't remove the component".format(remove_key))
 
-    def test_updateRelationship(self):
-        """Test relationship creation."""
-        rm = RelationshipMap(
+    def get_relmap(self):
+        return RelationshipMap(
             compname="os",
             relname="interfaces",
             modname="Products.ZenModel.IpInterface",
             objmaps=[
                 ObjectMap({"id": "eth0"}),
                 ObjectMap({"id": "eth1"}),
-                ])
+            ]
+        )
 
-        changed = self.service.remote_applyDataMaps(self.device.id, [rm])
+    def test_updateRelationship(self):
+        '''Test Relationship Creation
+        collect discrete tests to save on setup-time
+        '''
+        self.updateRelationship_creation()
+        self.updateRelationship_nochange()
+        self.updateRelationship_remove_object()
+        self.updateRelationship_remove_all_objects()
+
+    def updateRelationship_creation(self):
+        """Test relationship creation."""
+
+        changed = self.service.remote_applyDataMaps(
+            self.device.id, [self.get_relmap()]
+        )
         self.assertTrue(
             changed,
             "device.os.interfaces not changed by first RelationshipMap")
 
         self.assertEqual(
             2, self.device.os.interfaces.countObjects(),
-            "wrong number of interfaces created by first RelationshipMap")
+            "wrong number of interfaces created by first RelationshipMap"
+        )
 
-        changed = self.service.remote_applyDataMaps(self.device.id, [rm])
-        self.assertFalse(
-            changed,
-            "device.os.interfaces changed by second RelationshipMap")
+    def updateRelationship_nochange(self):
+        '''updateRelationship returns False if no changes are made
+        '''
+        self.service.remote_applyDataMaps(self.device.id, [self.get_relmap()])
+        changed = self.service.remote_applyDataMaps(
+            self.device.id, [self.get_relmap()]
+        )
+        self.assertFalse(changed)
 
-        rm.maps = rm.maps[:1]
-        changed = self.service.remote_applyDataMaps(self.device.id, [rm])
-        self.assertTrue(
-            changed,
-            "device.os.interfaces not changed by trimmed RelationshipMap")
+    def updateRelationship_remove_object(self):
+        '''related objects missing from the datamap are removed
+        '''
+        self.service.remote_applyDataMaps(self.device.id, [self.get_relmap()])
+        relmap = self.get_relmap()
+        relmap.maps = relmap.maps[:1]
+        changed = self.service.remote_applyDataMaps(self.device.id, [relmap])
 
+        self.assertTrue(changed, "related object not removed")
         self.assertEquals(
             1, self.device.os.interfaces.countObjects(),
-            "wrong number of interfaces after trimmed RelationshipMap")
+            "wrong number of interfaces after trimmed RelationshipMap"
+        )
 
-        rm.maps = []
-        changed = self.service.remote_applyDataMaps(self.device.id, [rm])
-        self.assertTrue(
-            changed,
-            "device.os.interfaces not changed by empty RelationshipMap")
-
+    def updateRelationship_remove_all_objects(self):
+        '''All related objects may be removed if the relmap is empty
+        '''
+        self.service.remote_applyDataMaps(self.device.id, [self.get_relmap()])
+        relmap = self.get_relmap()
+        relmap.maps = []
+        changed = self.service.remote_applyDataMaps(self.device.id, [relmap])
+        self.assertTrue(changed, "failed to remove related objects")
         self.assertEquals(
             0, self.device.os.interfaces.countObjects(),
-            "wrong number of interfaces after empty RelationshipMap")
+            "wrong number of interfaces after empty RelationshipMap"
+        )

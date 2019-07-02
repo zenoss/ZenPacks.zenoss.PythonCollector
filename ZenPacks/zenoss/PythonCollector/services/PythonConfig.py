@@ -16,6 +16,7 @@ from twisted.spread import pb
 
 from Products.DataCollector.ApplyDataMap import ApplyDataMap
 from Products.ZenCollector.services.config import CollectorConfigService
+from Products.ZenHub.PBDaemon import translateError
 from Products.ZenRRD.zencommand import DataPointConfig
 from Products.ZenUtils.ZenTales import talesEvalStr
 
@@ -24,7 +25,7 @@ from ZenPacks.zenoss.PythonCollector.datasources.PythonDataSource \
 
 
 known_point_properties = (
-    'isrow', 'rrdmax', 'description', 'rrdmin', 'rrdtype', 'createCmd')
+    'isrow', 'rrdmax', 'description', 'rrdmin', 'rrdtype', 'createCmd', 'tags')
 
 
 class PythonDataSourceConfig(pb.Copyable, pb.RemoteCopy):
@@ -127,6 +128,12 @@ class PythonConfig(CollectorConfigService):
                     if hasattr(deviceOrComponent, 'getMetricMetadata'):
                         dp_config.metadata = deviceOrComponent.getMetricMetadata()
 
+                    # Support for RRDDataPoint.tags added in Zenoss 7.
+                    if dp.aqBaseHasAttr("getTags"):
+                        dp_config.tags = dp.getTags(deviceOrComponent)
+                    else:
+                        dp_config.tags = {}
+
                     # Attach unknown properties to the dp_config
                     for key in dp.propdict().keys():
                         if key in known_point_properties:
@@ -224,6 +231,7 @@ class PythonConfig(CollectorConfigService):
                         break
         return result
 
+    @translateError
     def remote_applyDataMaps(self, device, datamaps):
         device_obj = self.getPerformanceMonitor().findDevice(device)
         if device_obj is None:
