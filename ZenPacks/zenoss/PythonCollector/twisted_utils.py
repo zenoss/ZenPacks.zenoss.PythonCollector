@@ -14,37 +14,34 @@ from twisted.python import failure
 
 
 def add_timeout(deferred, seconds, exception_class=error.TimeoutError):
-    """Return new Deferred that will errback exception_class after seconds."""
-    deferred_with_timeout = defer.Deferred()
+    """Timeout deferred by scheduling it to be cancelled after seconds."""
+    timed_out = [False]
 
     def fire_timeout():
+        timed_out[0] = True
         deferred.cancel()
-
-        if not deferred_with_timeout.called:
-            deferred_with_timeout.errback(exception_class())
 
     delayed_timeout = reactor.callLater(seconds, fire_timeout)
 
     def handle_result(result):
-        is_failure = isinstance(result, failure.Failure)
-        is_cancelled = is_failure and isinstance(result.value, defer.CancelledError)
+        if timed_out[0]:
+            if isinstance(result, failure.Failure):
+                result.trap(defer.CancelledError)
+                raise exception_class()
 
-        if delayed_timeout.active():
-            # Cancel the timeout since a result came before it fired.
-            delayed_timeout.cancel()
-        elif is_cancelled:
-            # Don't propagate cancellations that we caused.
-            return
-
-        # Propagate remaining results.
-        if is_failure:
-            deferred_with_timeout.errback(result)
-        else:
-            deferred_with_timeout.callback(result)
+        return result
 
     deferred.addBoth(handle_result)
 
-    return deferred_with_timeout
+    def cancel_timeout(result):
+        if delayed_timeout.active():
+            delayed_timeout.cancel()
+
+        return result
+
+    deferred.addBoth(cancel_timeout)
+
+    return deferred
 
 
 def sleep(seconds):
