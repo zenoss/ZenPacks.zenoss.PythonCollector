@@ -275,7 +275,8 @@ class TestPublishedDataPlugin(PerDeviceTestPlugin):
         self.loop.start(10, now=False)
 
     def cleanup(self, config):
-        self.loop.stop()
+        if self.loop.running:
+            self.loop.stop()
 
     @defer.inlineCallbacks
     def onLoop(self, config):
@@ -283,7 +284,7 @@ class TestPublishedDataPlugin(PerDeviceTestPlugin):
             yield self.publishEvents([{
                 "component": datasource.component,
                 "severity": 2,
-                "summary": "TestReturnedDataPlugin {}".format(
+                "summary": "TestPublishedDataPlugin {}".format(
                     datasource.datasource)}])
 
             for point in datasource.points:
@@ -297,7 +298,7 @@ class TestPublishedDataPlugin(PerDeviceTestPlugin):
                     value=77.0,
                     tags={
                         "type": "adhoc",
-                        "plugin": "TestReturnedDataPlugin",
+                        "plugin": "TestPublishedDataPlugin",
                         "device": datasource.device,
                         "component": datasource.component})])
 
