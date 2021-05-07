@@ -501,6 +501,9 @@ class PythonCollectionTask(BaseTask):
             else:
                 d = self.pluginCalls['collect'](self.config)
 
+        if not d:
+            return defer.fail(Exception('No Plugin for {} {}; {}'.format(self.name, plugin_classname, datasource)))
+
         # Guard against plugin's collect method RUNNING for too long.
         if self.runningTimeout:
             d = twisted_utils.add_timeout(
