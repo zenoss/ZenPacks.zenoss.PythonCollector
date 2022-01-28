@@ -495,11 +495,14 @@ class PythonCollectionTask(BaseTask):
 
         # Guard against plugin's collect method BLOCKING for too long.
         with watchdog.timeout(self.blockingTimeout, plugin_classname):
-            if hasattr(self, "_scheduler") and getattr(self._scheduler, "cyberark", None):
-                d = defer.maybeDeferred(self._update_config)
+            if (
+                hasattr(self, "_scheduler")
+                and getattr(self._scheduler, "cyberark", None)
+            ):
+                d = self._update_configs()
                 d.addCallback(self._run_collect)
             else:
-                d = self.pluginCalls['collect'](self.config)
+                d = self._run_collect()
 
         # Guard against plugin's collect method RUNNING for too long.
         if self.runningTimeout:
@@ -527,8 +530,10 @@ class PythonCollectionTask(BaseTask):
         # Return Deferred to the collector framework.
         return d
 
-    def _update_config(self):
-        return self._scheduler.cyberark.update_datasource(self)
+    @inlineCallbacks
+    def _update_configs(self):
+        for ds in self.config.datasources:
+            yield self._scheduler.cyberark.update_config(ds.device, ds)
 
     def _run_collect(self, result=None):
         return self.pluginCalls['collect'](self.config)
