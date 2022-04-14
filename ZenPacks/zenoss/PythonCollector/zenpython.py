@@ -569,7 +569,7 @@ class PythonCollectionTask(BaseTask):
             yield self._scheduler.cyberark.update_config(ds.device, ds)
 
     def _run_collect(self, result=None):
-        return self.pluginCalls['collect'](self.config)
+        return self.wrapPluginCall('collect')(self.config)
 
     def cleanup(self):
         try:
