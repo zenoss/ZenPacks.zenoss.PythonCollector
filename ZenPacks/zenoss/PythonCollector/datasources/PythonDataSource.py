@@ -8,6 +8,7 @@
 ##############################################################################
 
 import collections
+import datetime
 import time
 
 from Acquisition import aq_base
@@ -119,7 +120,11 @@ class PythonDataSourceInfo(RRDDataSourceInfo):
 class PythonDataSourcePlugin(object):
     """Abstract base class for a PythonDataSourcePlugin."""
 
+    createdAt = None
     proxy_attributes = ()
+
+    def __init__(self):
+        self.createdAt = datetime.datetime.utcnow()
 
     @classmethod
     def config_key(cls, datasource, context):

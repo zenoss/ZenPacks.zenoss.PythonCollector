@@ -113,6 +113,12 @@ device_classes:
               flaky:
                 dpName: flaky_sin
 
+              returned:
+                dpName: returnedData_value
+
+              published:
+                dpName: publishedData_value
+
       PythonCollectorComponent:
         targetPythonClass: ZenPacks.test.PythonCollector.PythonCollectorComponent
 

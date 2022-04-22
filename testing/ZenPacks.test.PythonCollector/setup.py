@@ -3,7 +3,7 @@
 # or saved.  Do not modify them directly here.
 # NB: PACKAGES is deprecated
 NAME = "ZenPacks.test.PythonCollector"
-VERSION = "1.0.0dev"
+VERSION = "1.0.0"
 AUTHOR = "Your Name Here"
 LICENSE = ""
 NAMESPACE_PACKAGES = ['ZenPacks', 'ZenPacks.test']

@@ -18,8 +18,10 @@ import logging
 log = logging.getLogger('zen.python')
 
 import collections
+import datetime
 import functools
 import inspect
+import optparse
 import re
 
 import Globals
@@ -38,7 +40,7 @@ if __name__ == "__main__":
         installReactor()
 
 
-from twisted.internet import defer, reactor, task
+from twisted.internet import defer, error, reactor, task
 from twisted.internet.defer import inlineCallbacks, returnValue, maybeDeferred
 from twisted.python.failure import Failure
 from twisted.spread import pb
@@ -69,7 +71,8 @@ from Products.ZenUtils.Utils import unused
 
 from ZenPacks.zenoss.PythonCollector import twisted_utils
 from ZenPacks.zenoss.PythonCollector import watchdog
-from ZenPacks.zenoss.PythonCollector.utils import get_dp_values
+from ZenPacks.zenoss.PythonCollector import manhole
+from ZenPacks.zenoss.PythonCollector.utils import get_dp_values, weakmethod
 from ZenPacks.zenoss.PythonCollector.services.PythonConfig import PythonDataSourceConfig
 from ZenPacks.zenoss.PythonCollector.web.semaphores import DEFAULT_TWISTEDCONCURRENTHTTP
 from ZenPacks.zenoss.PythonCollector.lib.monotonic import monotonic
@@ -102,6 +105,11 @@ else:
 
 # eventClassKey for RUNNING timeout events.
 EVENTCLASSKEY_TIMEOUT = "zenpython-timeout"
+
+# Twisted manhole defaults.
+DEFAULT_MANHOLE_PORT = 7777
+DEFAULT_MANHOLE_USERNAME = 'zenoss'
+DEFAULT_MANHOLE_PASSWORD = 'zenoss'
 
 
 class Preferences(object):
@@ -166,12 +174,52 @@ class Preferences(object):
             default=None,
             help="Collect just for one datasource")
 
+        # Twisted manhole options. Disabled by default for security reasons.
+        manhole_group = optparse.OptionGroup(parser, "Manhole Options")
+        parser.add_option_group(manhole_group)
+
+        manhole_group.add_option(
+            '--manhole',
+            action='store_true',
+            default=False,
+            help='Enable Twisted manhole')
+
+        manhole_group.add_option(
+            '--manhole-port',
+            type='int',
+            default=DEFAULT_MANHOLE_PORT,
+            help='Twisted manhole port on which to listen (default %default)')
+
+        manhole_group.add_option(
+            '--manhole-username',
+            default=DEFAULT_MANHOLE_USERNAME,
+            help='Twisted manhole username (default %default)')
+
+        manhole_group.add_option(
+            '--manhole-password',
+            default=DEFAULT_MANHOLE_PASSWORD,
+            help='Twisted manhole password (default %default)')
+
     def postStartup(self):
         if self.options.ignorePlugins and self.options.collectPlugins:
             raise SystemExit("Only one of --ignore or --collect"
                              " can be used at a time")
 
+        self.setupManhole()
         self.setupWatchdog()
+
+    def setupManhole(self):
+        if self.options.manhole:
+            manhole_port = self.options.manhole_port
+            log.info("starting manhole on port %s", manhole_port)
+
+            try:
+                manhole.setup(
+                    port=manhole_port,
+                    username=self.options.manhole_username,
+                    password=self.options.manhole_password)
+            except error.CannotListenError as e:
+                log.error("failed to start manhole: %s", e)
 
     def setupWatchdog(self):
         if self.options.blockingTimeout > 0:
@@ -307,22 +355,6 @@ class PythonCollectionTask(BaseTask):
         # New in 1.7: Use startDelay from the plugin.
         self.startDelay = getattr(self.plugin, 'startDelay', None)
 
-        # New in 1.7.2: Wrap all calls to plugin methods in synchronous
-        # timeouts if "blockingtimeout" is non-zero. This is done to
-        # guard zenpython against plugins that pause the event loop with
-        # blocking code.
-        self.pluginCalls = {
-            x: self.wrapPluginCall(getattr(self.plugin, x))
-            for x in [
-                'collect',
-                'onResult',
-                'onSuccess',
-                'onError',
-                'onComplete',
-                'cleanup',
-            ]
-        }
-
         # New in 1.7.2: Track the percent of time zenpython is blocked
         # by plugin code. Plugin code should be asynchronous and the
         # amount of time they block should be very small. However, code
@@ -342,6 +374,9 @@ class PythonCollectionTask(BaseTask):
         # New in 1.11.0: Support for datapoint extra tags.
         self.metricExtraTags = getattr(
             self._dataService, "metricExtraTags", False)
+
+        # Useful for troubleshooting memory leaks.
+        self.createdAt = datetime.datetime.utcnow()
 
     def getDatasources(self):
         try:
@@ -384,29 +419,27 @@ class PythonCollectionTask(BaseTask):
         else:
             plugin = plugin_class()
 
-        # Provide access to getService, without providing access
-        # to other parts of self, or encouraging the use of
-        # self._collector, which you totally did not see.   Nothing
-        # to see here.  Move along.
-        @inlineCallbacks
-        def _getServiceFromCollector(service_name):
-            service = yield self._collector.getService(service_name)
-            returnValue(service)
+        default_r = defer.succeed(None)
 
-        plugin.getService = _getServiceFromCollector
+        # New in 1.6: All plugins to get hub services.
+        plugin.getService = weakmethod(self._collector.getService, default_r)
+
+        # New in 1.11: Allow plugins to change interval directly and immediately.
+        plugin.changeInterval = weakmethod(self.changeInterval)
 
         # New in 1.11: Allow plugins to directly and immediately publish data.
-        plugin.publishData = self.processResults
-        plugin.publishEvents = self.sendEvents
-        plugin.publishValues = self.storeValues
-        plugin.publishMetrics = self.publishMetrics
-        plugin.publishMaps = self.applyMaps
-        plugin.changeInterval = self.changeInterval
+        plugin.publishData = weakmethod(self.processResults, default_r)
+        plugin.publishEvents = weakmethod(self.sendEvents, default_r)
+        plugin.publishValues = weakmethod(self.storeValues, default_r)
+        plugin.publishMetrics = weakmethod(self.publishMetrics, default_r)
+        plugin.publishMaps = weakmethod(self.applyMaps, default_r)
 
         return plugin
 
-    def wrapPluginCall(self, f):
-        """Records detailed statistics for wrapped function."""
+    def wrapPluginCall(self, method):
+        """Records detailed statistics for wrapped plugin method."""
+        f = getattr(self.plugin, method)
+
         @functools.wraps(f)
         def __wrapper(*args, **kwargs):
             # Save original state to restore after running function.
@@ -512,10 +545,10 @@ class PythonCollectionTask(BaseTask):
                 exception_class=RunningTimeoutError)
 
         # Allow the plugin to handle results from it's collect method.
-        d.addBoth(self.pluginCalls['onResult'], self.config)
-        d.addCallback(self.pluginCalls['onSuccess'], self.config)
-        d.addErrback(self.pluginCalls['onError'], self.config)
-        d.addBoth(self.pluginCalls['onComplete'], self.config)
+        d.addBoth(self.wrapPluginCall('onResult'), self.config)
+        d.addCallback(self.wrapPluginCall('onSuccess'), self.config)
+        d.addErrback(self.wrapPluginCall('onError'), self.config)
+        d.addBoth(self.wrapPluginCall('onComplete'), self.config)
 
         # Have zenpython handle RunningTimeoutError if the plugin doesn't.
         if self.runningTimeout:
@@ -536,11 +569,12 @@ class PythonCollectionTask(BaseTask):
             yield self._scheduler.cyberark.update_config(ds.device, ds)
 
     def _run_collect(self, result=None):
-        return self.pluginCalls['collect'](self.config)
+        return self.wrapPluginCall('collect')(self.config)
+
 
     def cleanup(self):
         try:
-            return self.pluginCalls['cleanup'](self.config)
+            return self.wrapPluginCall('cleanup')(self.config)
         except Exception as e:
             return self.handleError(e)
 
@@ -744,11 +778,11 @@ class PythonCollectionTask(BaseTask):
 
     def handleError(self, result):
         if isinstance(result, Failure):
-            error = result.value
+            e = result.value
         else:
-            error = result
+            e = result
 
-        log.error('%s unhandled plugin error: %s', self.name, error)
+        log.error('%s unhandled plugin error: %s', self.name, e)
 
 
 class RunningTimeoutError(Exception):
