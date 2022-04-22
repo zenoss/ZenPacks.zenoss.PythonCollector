@@ -12,6 +12,7 @@ import logging
 log = logging.getLogger('zen.python')
 
 from decimal import Decimal
+import weakref
 
 
 def get_dp_values(input_values):
@@ -73,3 +74,24 @@ def get_dp_ts(ts):
         return int(float(ts))
     except Exception:
         return
+
+
+def weakmethod(method, default=None):
+    """Return a function that only takes a weak reference to the object to which method is bound.
+
+    The returned function returns default if the original method's object no longer exists.
+
+    This can be used to avoid creating reference cycles.
+
+    """
+    self_ref = weakref.ref(method.im_self)
+    func = method.im_func
+
+    def weakcall(*args, **kwargs):
+        self = self_ref()
+        if self is None:
+            return default
+
+        return func(self, *args, **kwargs)
+
+    return weakcall
