@@ -27,7 +27,7 @@ $(MONOTONIC_DIR):
 py_monotonic: $(MONOTONIC_SRC) $(MONOTONIC_DIR)
 	rm -rf $(BUILD_DIR); mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR); tar zxf $(MONOTONIC_SRC) --strip-components=1 -C $(BUILD_DIR)	
-	cd $(BUILD_DIR); python setup.py build
+	cd $(BUILD_DIR); python setup.py build --build-lib build/lib
 	touch $(MONOTONIC_DIR)/__init__.py
 	cp -r $(BUILD_DIR)/build/lib/* $(MONOTONIC_DIR)
 	rm -rf $(BUILD_DIR)
