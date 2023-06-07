@@ -15,8 +15,10 @@ BUILD_DIR=$(ZP_DIR)/build
 MONOTONIC_SRC=$(SRC_DIR)/monotonic-1.5.tar.gz
 MONOTONIC_DIR=$(LIB_DIR)/monotonic
 
+.PHONY: default
 default: egg
 
+.PHONY: egg
 egg:
 	# setup.py will call 'make build' before creating the egg
 	python setup.py bdist_egg
@@ -24,6 +26,7 @@ egg:
 $(MONOTONIC_DIR):
 	mkdir -p $(MONOTONIC_DIR)
 
+.PHONY: py_monotonic
 py_monotonic: $(MONOTONIC_SRC) $(MONOTONIC_DIR)
 	rm -rf $(BUILD_DIR); mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR); tar zxf $(MONOTONIC_SRC) --strip-components=1 -C $(BUILD_DIR)	
@@ -32,9 +35,10 @@ py_monotonic: $(MONOTONIC_SRC) $(MONOTONIC_DIR)
 	cp -r $(BUILD_DIR)/build/lib/* $(MONOTONIC_DIR)
 	rm -rf $(BUILD_DIR)
 
+.PHONY: build
 build: py_monotonic
 	@echo
 
+.PHONY: clean
 clean:
 	rm -rf build dist $(MONOTONIC_DIR)
-
