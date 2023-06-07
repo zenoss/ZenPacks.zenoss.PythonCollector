@@ -1,6 +1,11 @@
 Releases
 --------
 
+Version 1.11.2-<a rel="nofollow" class="external" href="https://delivery.zenoss.com">Download</a>
+:   Released on June 7, 2023
+:   Compatible with Zenoss Cloud and Zenoss 6
+:   No additional requirements
+
 Version 1.11.1-<a rel="nofollow" class="external" href="https://delivery.zenoss.com">Download</a>
 :   Released on April 22, 2022
 :   Compatible with Zenoss Cloud and Zenoss 6
